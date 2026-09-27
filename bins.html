@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bins — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="bins">
+
+<header class="top" id="app-header"></header>
+<div id="authGate"></div>
+
+<main>
+  <div id="binsList"></div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<button class="fab" id="fabAdd">+</button>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="sheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="sheetTitle">New bin</h3>
+    <label class="field-label">Which bin</label>
+    <input type="text" id="bName" placeholder="e.g. General waste, Recycling, Garden">
+    <label class="field-label">Day it goes out</label>
+    <select id="bDay">
+      <option value="1">Monday</option>
+      <option value="2">Tuesday</option>
+      <option value="3">Wednesday</option>
+      <option value="4">Thursday</option>
+      <option value="5">Friday</option>
+      <option value="6">Saturday</option>
+      <option value="0">Sunday</option>
+    </select>
+    <label class="field-label">How often</label>
+    <select id="bFrequency">
+      <option value="weekly">Every week</option>
+      <option value="fortnightly">Every other week</option>
+    </select>
+    <div id="anchorRow" style="display:none">
+      <label class="field-label">A date this bin was actually collected</label>
+      <input type="date" id="bAnchor">
+      <p class="event-meta">Used to work out which of the two weeks it falls on.</p>
+    </div>
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="bNotes"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="bCancel">Cancel</button>
+      <button class="btn primary" id="bSave">Save</button>
+    </div>
+    <div class="sheet-row" id="deleteRow" style="display:none">
+      <button class="btn danger" id="bDelete">Delete this bin</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="push.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  let rows = [];
+  let editingId = null;
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function render() {
+    const el = document.getElementById('binsList');
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">' + icon('bin', 40) + '<p>No bins added yet</p><p>Add each one your council collects.</p></div>';
+      return;
+    }
+    const withDates = rows.map(r => Object.assign({}, r, { next: nextBinDate(r.day_of_week, r.frequency, r.anchor_date) }))
+      .sort((a, b) => a.next.localeCompare(b.next));
+    el.innerHTML = withDates.map(r => {
+      const freq = r.frequency === 'fortnightly' ? 'every other week' : 'every week';
+      return '<div class="list-row" data-id="' + r.id + '">' +
+        '<span class="glance-icon" style="flex-shrink:0">' + icon('bin', 18) + '</span>' +
+        '<div class="event-main"><div class="event-title">' + escapeHtml(r.name) + '</div>' +
+        '<div class="event-meta">' + formatDayHeading(r.next) + ' · ' + freq + (r.notes ? ' · ' + escapeHtml(r.notes) : '') + '</div></div></div>';
+    }).join('');
+    el.querySelectorAll('.list-row').forEach(row => row.addEventListener('click', () => openSheet(row.dataset.id)));
+  }
+
+  const backdrop = document.getElementById('sheetBackdrop');
+  function toggleAnchorRow() {
+    document.getElementById('anchorRow').style.display = document.getElementById('bFrequency').value === 'fortnightly' ? 'block' : 'none';
+  }
+  document.getElementById('bFrequency').addEventListener('change', toggleAnchorRow);
+
+  function openSheet(id) {
+    editingId = id || null;
+    const r = id ? rows.find(x => x.id === id) : null;
+    document.getElementById('sheetTitle').textContent = r ? 'Edit bin' : 'New bin';
+    document.getElementById('bName').value = r ? r.name : '';
+    document.getElementById('bDay').value = r ? String(r.day_of_week) : '1';
+    document.getElementById('bFrequency').value = r ? r.frequency : 'weekly';
+    document.getElementById('bAnchor').value = r ? (r.anchor_date || '') : '';
+    document.getElementById('bNotes').value = r ? (r.notes || '') : '';
+    toggleAnchorRow();
+    document.getElementById('deleteRow').style.display = r ? 'flex' : 'none';
+    backdrop.hidden = false;
+  }
+  document.getElementById('fabAdd').addEventListener('click', () => openSheet(null));
+  document.getElementById('bCancel').addEventListener('click', () => backdrop.hidden = true);
+
+  document.getElementById('bSave').addEventListener('click', async () => {
+    const name = document.getElementById('bName').value.trim();
+    if (!name) return;
+    const frequency = document.getElementById('bFrequency').value;
+    const payload = {
+      name,
+      day_of_week: parseInt(document.getElementById('bDay').value, 10),
+      frequency,
+      anchor_date: frequency === 'fortnightly' ? (document.getElementById('bAnchor').value || null) : null,
+      notes: document.getElementById('bNotes').value.trim() || null,
+    };
+    if (editingId) await window.sb.from('bin_reminders').update(payload).eq('id', editingId);
+    else await window.sb.from('bin_reminders').insert(payload);
+    backdrop.hidden = true;
+    load();
+  });
+  document.getElementById('bDelete').addEventListener('click', async () => {
+    if (editingId) await window.sb.from('bin_reminders').delete().eq('id', editingId);
+    backdrop.hidden = true;
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('bin_reminders').select('*').limit(200);
+    if (error) { showStatus('Could not load bins: ' + error.message); return; }
+    rows = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+  } else {
+    load();
+    window.sb.channel('bins-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bin_reminders' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

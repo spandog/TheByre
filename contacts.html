@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contacts — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="contacts">
+
+<header class="top" id="app-header"></header>
+<div id="authGate"></div>
+
+<main>
+  <div id="contactsList"></div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<button class="fab" id="fabAdd">+</button>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="sheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="sheetTitle">New contact</h3>
+    <label class="field-label">Name</label>
+    <input type="text" id="cName" placeholder="e.g. Dr Patel, Wallingford surgery">
+    <label class="field-label">Category (optional)</label>
+    <input type="text" id="cCategory" placeholder="e.g. GP, School, Emergency, Insurance">
+    <label class="field-label">Phone (optional)</label>
+    <input type="tel" id="cPhone" placeholder="01234 567890">
+    <label class="field-label">Email (optional)</label>
+    <input type="email" id="cEmail">
+    <label class="field-label">Address (optional)</label>
+    <input type="text" id="cAddress">
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="cNotes"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="cCancel">Cancel</button>
+      <button class="btn primary" id="cSave">Save</button>
+    </div>
+    <div class="sheet-row" id="deleteRow" style="display:none">
+      <button class="btn danger" id="cDelete">Delete this contact</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="push.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  let rows = [];
+  let editingId = null;
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function render() {
+    const el = document.getElementById('contactsList');
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">' + icon('contact', 40) + '<p>No contacts yet</p><p>Add the GP, school office, anything you\'d otherwise have to dig for.</p></div>';
+      return;
+    }
+    const groups = {};
+    rows.forEach(r => {
+      const cat = (r.category || '').trim() || 'Other';
+      (groups[cat] = groups[cat] || []).push(r);
+    });
+    const catNames = Object.keys(groups).sort((a, b) => a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b));
+    el.innerHTML = catNames.map(cat => {
+      const rowsHtml = groups[cat].sort((a, b) => a.name.localeCompare(b.name)).map(c => {
+        const meta = [c.phone, c.address].filter(Boolean).join(' · ');
+        const quickActions =
+          (c.phone ? '<a class="glance-chev" style="font-size:15px" href="tel:' + escapeHtml(c.phone) + '" onclick="event.stopPropagation()">' + icon('phone', 16) + '</a>' : '');
+        return '<div class="list-row" data-id="' + c.id + '">' +
+          '<span class="glance-icon" style="flex-shrink:0">' + icon('contact', 18) + '</span>' +
+          '<div class="event-main"><div class="event-title">' + escapeHtml(c.name) + '</div>' +
+          (meta ? '<div class="event-meta">' + escapeHtml(meta) + '</div>' : '') + '</div>' +
+          quickActions + '</div>';
+      }).join('');
+      return '<div class="day-group"><h2>' + escapeHtml(cat) + '</h2>' + rowsHtml + '</div>';
+    }).join('');
+    el.querySelectorAll('.list-row').forEach(row => row.addEventListener('click', () => openSheet(row.dataset.id)));
+  }
+
+  const backdrop = document.getElementById('sheetBackdrop');
+  function openSheet(id) {
+    editingId = id || null;
+    const c = id ? rows.find(x => x.id === id) : null;
+    document.getElementById('sheetTitle').textContent = c ? 'Edit contact' : 'New contact';
+    document.getElementById('cName').value = c ? c.name : '';
+    document.getElementById('cCategory').value = c ? (c.category || '') : '';
+    document.getElementById('cPhone').value = c ? (c.phone || '') : '';
+    document.getElementById('cEmail').value = c ? (c.email || '') : '';
+    document.getElementById('cAddress').value = c ? (c.address || '') : '';
+    document.getElementById('cNotes').value = c ? (c.notes || '') : '';
+    document.getElementById('deleteRow').style.display = c ? 'flex' : 'none';
+    backdrop.hidden = false;
+  }
+  document.getElementById('fabAdd').addEventListener('click', () => openSheet(null));
+  document.getElementById('cCancel').addEventListener('click', () => backdrop.hidden = true);
+
+  document.getElementById('cSave').addEventListener('click', async () => {
+    const name = document.getElementById('cName').value.trim();
+    if (!name) return;
+    const payload = {
+      name,
+      category: document.getElementById('cCategory').value.trim() || null,
+      phone: document.getElementById('cPhone').value.trim() || null,
+      email: document.getElementById('cEmail').value.trim() || null,
+      address: document.getElementById('cAddress').value.trim() || null,
+      notes: document.getElementById('cNotes').value.trim() || null,
+    };
+    if (editingId) await window.sb.from('contacts').update(payload).eq('id', editingId);
+    else await window.sb.from('contacts').insert(payload);
+    backdrop.hidden = true;
+    load();
+  });
+  document.getElementById('cDelete').addEventListener('click', async () => {
+    if (editingId) await window.sb.from('contacts').delete().eq('id', editingId);
+    backdrop.hidden = true;
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('contacts').select('*').limit(500);
+    if (error) { showStatus('Could not load contacts: ' + error.message); return; }
+    rows = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+  } else {
+    load();
+    window.sb.channel('contacts-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

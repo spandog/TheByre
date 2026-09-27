@@ -82,7 +82,8 @@
     window.sb.from('school_dates').select('*').gte('date', todayISO()).order('date', { ascending: true }).limit(1),
     window.sb.from('holidays').select('*').gte('start_date', todayISO()).order('start_date', { ascending: true }).limit(1),
     window.sb.from('todo_items').select('*').eq('checked', false),
-  ]).then(([clubsRes, bdayRes, shopRes, schoolRes, holRes, todoRes]) => {
+    window.sb.from('bin_reminders').select('*'),
+  ]).then(([clubsRes, bdayRes, shopRes, schoolRes, holRes, todoRes, binsRes]) => {
     const rows = [];
 
     if (!clubsRes.error && clubsRes.data.length) {
@@ -136,6 +137,17 @@
         });
       } else {
         rows.push({ icon: 'checklist', href: 'todo.html', label: n + ' thing' + (n === 1 ? '' : 's') + ' to do', meta: '' });
+      }
+    }
+
+    if (!binsRes.error && binsRes.data.length) {
+      const dueSoon = binsRes.data
+        .map(b => Object.assign({}, b, { next: nextBinDate(b.day_of_week, b.frequency, b.anchor_date) }))
+        .filter(b => daysUntil(b.next) <= 1)
+        .sort((a, b) => a.next.localeCompare(b.next));
+      if (dueSoon.length) {
+        const names = dueSoon.map(b => b.name).join(', ');
+        rows.push({ icon: 'bin', href: 'bins.html', label: names, meta: formatDayHeading(dueSoon[0].next) });
       }
     }
 

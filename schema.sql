@@ -11,6 +11,7 @@ create table if not exists events (
   notes text,
   recurring boolean not null default false, -- true for birthdays/anniversaries: `date` is the ORIGINAL date, and the app works out each year's occurrence from it
   remind_days_before integer, -- e.g. 3 = notify 3 days before this year's occurrence; null = no reminder
+  child text, -- optional freeform tag: who this is for
   created_at timestamptz not null default now()
 );
 
@@ -66,7 +67,29 @@ create table if not exists todo_items (
   checked boolean not null default false,
   due_date date,
   notes text,
+  child text, -- optional freeform tag: who this is for
   added_at timestamptz not null default now()
+);
+
+create table if not exists bin_reminders (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,             -- e.g. "General waste", "Recycling"
+  day_of_week integer not null,   -- 0 = Sunday .. 6 = Saturday
+  frequency text not null default 'weekly', -- weekly | fortnightly
+  anchor_date date,               -- a real date this bin was collected, for fortnightly
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists contacts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  category text,  -- freeform: GP, School, Emergency, Insurance, etc
+  phone text,
+  email text,
+  address text,
+  notes text,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists push_subscriptions (
@@ -99,6 +122,8 @@ alter table clubs enable row level security;
 alter table meal_ideas enable row level security;
 alter table push_subscriptions enable row level security;
 alter table todo_items enable row level security;
+alter table bin_reminders enable row level security;
+alter table contacts enable row level security;
 
 create policy "family read/write events" on events
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -130,6 +155,12 @@ create policy "own push subscription" on push_subscriptions
 create policy "family read/write todo" on todo_items
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+create policy "family read/write bins" on bin_reminders
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "family read/write contacts" on contacts
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
 -- Turn on realtime so both phones see changes live.
 alter publication supabase_realtime add table events;
 alter publication supabase_realtime add table shopping_items;
@@ -139,3 +170,5 @@ alter publication supabase_realtime add table packing_items;
 alter publication supabase_realtime add table clubs;
 alter publication supabase_realtime add table meal_ideas;
 alter publication supabase_realtime add table todo_items;
+alter publication supabase_realtime add table bin_reminders;
+alter publication supabase_realtime add table contacts;

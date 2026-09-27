@@ -20,6 +20,7 @@
     <input type="text" id="todoInput" placeholder="Add something to do…" autocomplete="off">
     <button class="btn primary" style="flex:0 0 auto; padding:0 18px;" id="todoAddBtn">Add</button>
   </div>
+  <div class="chip-row" id="childChips" style="display:none"></div>
   <div id="todoActive"></div>
   <div id="todoCheckedWrap" style="display:none">
     <p class="section-label">Done</p>
@@ -36,10 +37,12 @@
 
 <div class="sheet-backdrop" id="dueSheetBackdrop" hidden>
   <div class="sheet">
-    <h3>Add a due date</h3>
+    <h3>Any more detail?</h3>
     <p class="event-meta" id="dueSheetItemLabel"></p>
     <label class="field-label">Due (optional)</label>
     <input type="date" id="dueDateInput">
+    <label class="field-label">Who's this for (optional)</label>
+    <input type="text" id="dueChildInput" placeholder="e.g. a name, or leave blank for everyone">
     <div class="sheet-row">
       <button class="btn ghost" id="dueCancel">Skip</button>
       <button class="btn primary" id="dueSave">Save</button>
@@ -58,6 +61,7 @@
   document.getElementById('todoEmptyGlyph').innerHTML = icon('checklist', 40);
   let items = [];
   let dueEditId = null;
+  let activeChild = 'all';
 
   function showStatus(msg) {
     const el = document.getElementById('statusNote');
@@ -72,10 +76,11 @@
   }
 
   function render() {
-    const active = items.filter(i => !i.checked)
+    const visible = activeChild === 'all' ? items : items.filter(i => (i.child || '') === activeChild);
+    const active = visible.filter(i => !i.checked)
       .sort((a, b) => (a.due_date || '9999-99-99').localeCompare(b.due_date || '9999-99-99'));
-    const checked = items.filter(i => i.checked);
-    document.getElementById('todoEmpty').style.display = items.length === 0 ? 'block' : 'none';
+    const checked = visible.filter(i => i.checked);
+    document.getElementById('todoEmpty').style.display = visible.length === 0 ? 'block' : 'none';
     document.getElementById('todoActive').innerHTML = active.map(rowHtml).join('');
     document.getElementById('todoCheckedWrap').style.display = checked.length ? 'block' : 'none';
     document.getElementById('todoChecked').innerHTML = checked.map(rowHtml).join('');
@@ -91,12 +96,29 @@
     });
   }
   function rowHtml(item) {
-    const meta = dueMeta(item);
+    const bits = [dueMeta(item), item.child].filter(Boolean);
+    const meta = bits.join(' · ');
     return '<div class="shop-item" data-checked="' + !!item.checked + '" data-id="' + item.id + '">' +
       '<span class="check" data-checked="' + !!item.checked + '">' + (item.checked ? '✓' : '') + '</span>' +
       '<span class="shop-text">' + escapeHtml(item.text) +
       (meta ? ' <span style="color:var(--ink-faint);font-size:12px">· ' + escapeHtml(meta) + '</span>' : '') + '</span>' +
       '<button class="shop-del">×</button></div>';
+  }
+
+  function renderChildChips() {
+    const names = Array.from(new Set(items.map(i => (i.child || '').trim()).filter(Boolean))).sort();
+    const wrap = document.getElementById('childChips');
+    if (names.length < 2) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    wrap.innerHTML = '<button class="chip" data-active="' + (activeChild === 'all') + '" data-child="all">Everyone</button>' +
+      names.map(n => '<button class="chip" data-active="' + (activeChild === n) + '" data-child="' + escapeHtml(n) + '">' + escapeHtml(n) + '</button>').join('');
+    wrap.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        activeChild = chip.dataset.child;
+        renderChildChips();
+        render();
+      });
+    });
   }
 
   document.getElementById('todoAddBtn').addEventListener('click', add);
@@ -116,12 +138,14 @@
     dueEditId = id;
     document.getElementById('dueSheetItemLabel').textContent = text;
     document.getElementById('dueDateInput').value = '';
+    document.getElementById('dueChildInput').value = '';
     dueBackdrop.hidden = false;
   }
   document.getElementById('dueCancel').addEventListener('click', () => dueBackdrop.hidden = true);
   document.getElementById('dueSave').addEventListener('click', async () => {
     const due = document.getElementById('dueDateInput').value || null;
-    if (dueEditId) await window.sb.from('todo_items').update({ due_date: due }).eq('id', dueEditId);
+    const child = document.getElementById('dueChildInput').value.trim() || null;
+    if (dueEditId) await window.sb.from('todo_items').update({ due_date: due, child }).eq('id', dueEditId);
     dueBackdrop.hidden = true;
     load();
   });
@@ -146,6 +170,7 @@
     const { data, error } = await window.sb.from('todo_items').select('*').order('added_at', { ascending: true }).limit(500);
     if (error) { showStatus('Could not load the list: ' + error.message); return; }
     items = data;
+    renderChildChips();
     render();
   }
 

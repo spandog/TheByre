@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>More — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="more">
+
+<header class="top" id="app-header"></header>
+<div id="authGate"></div>
+
+<main>
+  <section class="glance-section">
+    <div id="moreList"></div>
+  </section>
+</main>
+
+<nav class="tabs" id="app-nav"></nav>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="push.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  const items = [
+    { icon: 'dumbbell', href: 'clubs.html', label: 'Clubs', meta: 'Weekly clubs and activities, grouped by day' },
+    { icon: 'backpack', href: 'school.html', label: 'School', meta: 'Term dates and school events' },
+    { icon: 'suitcase', href: 'holidays.html', label: 'Holidays', meta: 'Trips, countdowns and packing lists' },
+    { icon: 'bin', href: 'bins.html', label: 'Bins', meta: 'Which bin goes out, and when' },
+    { icon: 'contact', href: 'contacts.html', label: 'Contacts', meta: 'GP, school office, and other numbers' },
+  ];
+  document.getElementById('moreList').innerHTML = items.map(i =>
+    '<a class="glance-row" href="' + i.href + '">' +
+    '<span class="glance-icon">' + icon(i.icon, 20) + '</span>' +
+    '<div class="event-main"><div class="event-title">' + i.label + '</div>' +
+    '<div class="event-meta">' + i.meta + '</div></div>' +
+    '<span class="glance-chev">›</span></a>'
+  ).join('');
+})();
+</script>
+</body>
+</html>

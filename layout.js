@@ -13,7 +13,12 @@
     school: 'School',
     holidays: 'Holidays',
     todo: 'To do',
+    bins: 'Bins',
+    contacts: 'Contacts',
+    more: 'More',
   };
+  // Full list: used for page titles, the desktop top-link row, and working
+  // out which icon a page's header badge should show.
   const NAV_ITEMS = [
     { key: 'home', href: 'index.html', icon: 'home', label: 'Home' },
     { key: 'calendar', href: 'calendar.html', icon: 'calendar', label: 'Calendar' },
@@ -22,6 +27,19 @@
     { key: 'clubs', href: 'clubs.html', icon: 'dumbbell', label: 'Clubs' },
     { key: 'school', href: 'school.html', icon: 'backpack', label: 'School' },
     { key: 'holidays', href: 'holidays.html', icon: 'suitcase', label: 'Holidays' },
+    { key: 'bins', href: 'bins.html', icon: 'bin', label: 'Bins' },
+    { key: 'contacts', href: 'contacts.html', icon: 'contact', label: 'Contacts' },
+    { key: 'more', href: 'more.html', icon: 'more', label: 'More' },
+  ];
+  // Short list: the five tabs that actually appear in the mobile bottom
+  // bar. Everything else lives one tap away, under More.
+  const SECONDARY_KEYS = ['clubs', 'school', 'holidays', 'bins', 'contacts'];
+  const MOBILE_TABS = [
+    { key: 'home', href: 'index.html', icon: 'home', label: 'Home' },
+    { key: 'calendar', href: 'calendar.html', icon: 'calendar', label: 'Calendar' },
+    { key: 'shopping', href: 'shopping.html', icon: 'basket', label: 'Shopping' },
+    { key: 'todo', href: 'todo.html', icon: 'checklist', label: 'To do' },
+    { key: 'more', href: 'more.html', icon: 'more', label: 'More' },
   ];
 
   function buildHeader() {
@@ -33,7 +51,7 @@
       '<div class="brand-row"><span class="brand-badge">' + icon(navItem ? navItem.icon : 'home', 18) + '</span>' +
       '<div><p class="eyebrow">' + (PAGE === 'home' ? "Today's date" : 'Family hub') + '</p>' +
       '<h1 id="headerTitle">' + PAGE_TITLES[PAGE] + '</h1></div></div></div>' +
-      '<nav class="top-links">' + NAV_ITEMS.map(i =>
+      '<nav class="top-links">' + NAV_ITEMS.filter(i => i.key !== 'more').map(i =>
         '<a href="' + i.href + '" data-active="' + (i.key === PAGE) + '">' + i.label + '</a>'
       ).join('') + '</nav>' +
       '<div class="auth-widget" id="authWidget"></div>';
@@ -48,10 +66,12 @@
   function buildNav() {
     const el = document.getElementById('app-nav');
     if (!el) return;
-    el.innerHTML = '<div class="tabs-inner">' + NAV_ITEMS.map(i =>
-      '<a class="tab-btn" href="' + i.href + '" data-active="' + (i.key === PAGE) + '">' +
-      '<span class="icon">' + icon(i.icon, 18) + '</span>' + i.label + '</a>'
-    ).join('') + '</div>';
+    const onSecondary = SECONDARY_KEYS.indexOf(PAGE) !== -1;
+    el.innerHTML = '<div class="tabs-inner">' + MOBILE_TABS.map(i => {
+      const active = i.key === 'more' ? onSecondary : (i.key === PAGE);
+      return '<a class="tab-btn" href="' + i.href + '" data-active="' + active + '">' +
+        '<span class="icon">' + icon(i.icon, 20) + '</span>' + i.label + '</a>';
+    }).join('') + '</div>';
   }
 
   function buildAuthGate() {

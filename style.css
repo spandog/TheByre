@@ -161,8 +161,8 @@ label.field-label { font-size: 12.5px; color: var(--ink-soft); display: block; m
 label.field-label:first-child { margin-top: 0; }
 
 nav.tabs { flex-shrink: 0; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
-.tabs-inner { max-width: 640px; width: 100%; display: flex; padding: 0 6px; gap: 0; }
-.tab-btn { flex: 1; background: none; border: none; font-family: var(--font-body); font-size: 10.3px; font-weight: 500; color: var(--ink-faint); padding: 6px 0 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; text-decoration: none; }
+.tabs-inner { max-width: 640px; width: 100%; display: flex; padding: 0 12px; gap: 4px; }
+.tab-btn { flex: 1; background: none; border: none; font-family: var(--font-body); font-size: 11.5px; font-weight: 500; color: var(--ink-faint); padding: 6px 0 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; }
 .tab-btn .icon { font-size: 18px; }
 .tab-btn[data-active="true"] { color: var(--ink); }
 

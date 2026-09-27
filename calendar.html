@@ -24,6 +24,7 @@
   <button class="chip" data-cat="birthday">Birthdays</button>
   <button class="chip" data-cat="anniversary">Anniversaries</button>
 </div>
+<div class="chip-row" id="childChips" style="display:none"></div>
 
 <main>
   <div class="month-nav">
@@ -81,6 +82,8 @@
     </div>
     <label class="field-label">Notes (optional)</label>
     <textarea id="evNotes"></textarea>
+    <label class="field-label">Who's this for (optional)</label>
+    <input type="text" id="evChild" placeholder="e.g. a name, or leave blank for everyone">
     <div class="sheet-row">
       <button class="btn ghost" id="evCancel">Cancel</button>
       <button class="btn primary" id="evSave">Save</button>
@@ -103,6 +106,7 @@
   const state = {
     events: [],
     activeCat: 'all',
+    activeChild: 'all',
     editingId: null,
     viewYear: today.getFullYear(),
     viewMonth: today.getMonth(), // 0-11
@@ -119,6 +123,7 @@
     const map = {};
     state.events.forEach(e => {
       if (state.activeCat !== 'all' && e.category !== state.activeCat) return;
+      if (state.activeChild !== 'all' && (e.child || '') !== state.activeChild) return;
       let iso;
       if (e.recurring) {
         iso = monthOccurrence(e.date, year, monthIndex);
@@ -193,6 +198,7 @@
       if (e.recurring) metaBits.push(e.category === 'anniversary' ? (yearsAt(e.date) + ' years') : ('turns ' + yearsAt(e.date)));
       metaBits.push(formatTime(e.time));
       if (e.notes) metaBits.push(e.notes);
+      if (e.child) metaBits.push(e.child);
       const meta = metaBits.filter(Boolean).join(' · ');
       return '<div class="event-row" data-id="' + e.id + '">' +
         '<span class="dot ' + e.category + '"></span>' +
@@ -200,6 +206,23 @@
         (meta ? '<div class="event-meta">' + escapeHtml(meta) + '</div>' : '') + '</div></div>';
     }).join('');
     list.querySelectorAll('.event-row').forEach(row => row.addEventListener('click', () => openSheet(row.dataset.id)));
+  }
+
+  function renderChildChips() {
+    const names = Array.from(new Set(state.events.map(e => (e.child || '').trim()).filter(Boolean))).sort();
+    const wrap = document.getElementById('childChips');
+    if (names.length < 2) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    wrap.innerHTML = '<button class="chip" data-active="' + (state.activeChild === 'all') + '" data-child="all">Everyone</button>' +
+      names.map(n => '<button class="chip" data-active="' + (state.activeChild === n) + '" data-child="' + escapeHtml(n) + '">' + escapeHtml(n) + '</button>').join('');
+    wrap.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        state.activeChild = chip.dataset.child;
+        renderChildChips();
+        renderGrid();
+        renderDayDetail();
+      });
+    });
   }
 
   function changeMonth(delta) {
@@ -251,6 +274,7 @@
     document.getElementById('evDate').value = ev ? ev.date : state.selectedDate;
     document.getElementById('evTime').value = ev ? (ev.time || '') : '';
     document.getElementById('evNotes').value = ev ? (ev.notes || '') : '';
+    document.getElementById('evChild').value = ev ? (ev.child || '') : '';
     const cat = ev ? ev.category : 'general';
     document.querySelectorAll('.cat-opt').forEach(o => o.dataset.active = (o.dataset.cat === cat));
     document.getElementById('recurringRow').style.display = isRecurringCat(cat) ? 'block' : 'none';
@@ -276,6 +300,7 @@
       title, date,
       time: document.getElementById('evTime').value || null,
       notes: document.getElementById('evNotes').value.trim() || null,
+      child: document.getElementById('evChild').value.trim() || null,
       category: cat,
       recurring: isRecurringCat(cat),
       remind_days_before: isRecurringCat(cat) && reminderVal !== '' ? parseInt(reminderVal, 10) : null,
@@ -298,6 +323,7 @@
     const { data, error } = await window.sb.from('events').select('*').order('date', { ascending: true }).limit(1000);
     if (error) { showStatus('Could not load the calendar: ' + error.message); return; }
     state.events = data;
+    renderChildChips();
     renderGrid();
     renderDayDetail();
   }

@@ -39,9 +39,22 @@ function daysUntil(iso) {
   return Math.round((d - today) / 86400000);
 }
 
-// For a recurring yearly event (birthday, anniversary), `origDate` is the
-// original date on record (e.g. actual date of birth). Returns the ISO date
-// of this year's occurrence, or next year's if this year's has passed.
+// Next collection date for a bin: `dow` is 0-6 (0 = Sunday), `frequency` is
+// 'weekly' or 'fortnightly', and for fortnightly, `anchorDate` (an ISO date
+// this bin was actually collected on) decides which fortnight we're in.
+function nextBinDate(dow, frequency, anchorDate) {
+  const today = new Date(todayISO() + 'T00:00:00');
+  let candidate = new Date(today);
+  const diff = (dow - candidate.getDay() + 7) % 7;
+  candidate.setDate(candidate.getDate() + diff);
+
+  if (frequency === 'fortnightly' && anchorDate) {
+    const anchor = new Date(anchorDate + 'T00:00:00');
+    const weeksBetween = Math.round((candidate - anchor) / (7 * 86400000));
+    if (((weeksBetween % 2) + 2) % 2 !== 0) candidate.setDate(candidate.getDate() + 7);
+  }
+  return candidate.getFullYear() + '-' + String(candidate.getMonth() + 1).padStart(2, '0') + '-' + String(candidate.getDate()).padStart(2, '0');
+}
 function nextOccurrence(origDate) {
   const today = new Date(todayISO() + 'T00:00:00');
   const orig = new Date(origDate + 'T00:00:00');

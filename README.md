@@ -61,11 +61,22 @@ school dates, holidays, packing items — appears for the other in real time.
 - `todo.html` — a shared to-do list, with an optional due date per item
   (skip it in the prompt if it's not needed) — items due within a week
   surface on the home dashboard
+- `bins.html` — which bin goes out and when, weekly or fortnightly
+- `contacts.html` — GP, school office, emergency numbers, grouped by
+  whatever category you give each one, with one-tap calling
+- `more.html` — the "More" tab: links to Clubs, School, Holidays, Bins
+  and Contacts, since the bottom bar only fits five tabs
 - `school.html` — term dates and school events
+
+Calendar events and to-do items can also be tagged with who they're for
+(a plain name, in the same "Who's this for" field in each one's add/edit
+sheet) — once two or more names are in use, a filter row appears on that
+page automatically.
 - `holidays.html` — trips with countdowns and a packing list per trip
-- `schema.sql` — run once in Supabase. `add-push-subscriptions.sql` and
-  `add-todo-items.sql` are small incremental additions to it, for whenever
-  those features were set up after the initial run
+- `schema.sql` — run once in Supabase. `add-push-subscriptions.sql`,
+  `add-todo-items.sql` and `add-bins-contacts-child-tags.sql` are small
+  incremental additions to it, for whenever those features were set up
+  after the initial run
 - `manifest.json`, `sw.js`, `icon-192.png`, `icon-512.png` — makes the site
   installable as a PWA (add to home screen, opens full screen like an app)
 - `style.css`, `db.js`, `layout.js`, `icons.js`, `config.js`, `push.js` —
