@@ -14,6 +14,7 @@ window.ICONS = {
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.4 7-11.5A7 7 0 0 0 5 9.5C5 14.6 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/></svg>',
   fork: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v6a2 2 0 0 0 2 2v10M7 3v6M10 3v6M13 3c0 3-1.5 5-1.5 7 0 1.4.9 2 1.5 2v9"/><path d="M18 3c-1.4 0-2.5 1.8-2.5 5s1.1 5 2.5 5V21"/></svg>',
   clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>',
+  checklist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5 6 8l3-3M4.5 13.5 6 15l3-3M4.5 20.5 6 22l3-3"/><path d="M11.5 7h8M11.5 14h8M11.5 21h8" stroke-linecap="round"/></svg>',
 };
 
 // Renders one icon at a given pixel size (defaults to 1em so it matches

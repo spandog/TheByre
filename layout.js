@@ -1,4 +1,9 @@
 (function () {
+  // Turned off for now while email sending (DNS/SMTP) is being sorted, so
+  // the site works without needing a sign-in link to arrive. Flip this
+  // back to true once that's done — nothing else needs to change.
+  const GATE_ENABLED = false;
+
   const PAGE = document.body.dataset.page || 'home';
   const PAGE_TITLES = {
     home: 'Mongewell Byre',
@@ -7,11 +12,13 @@
     clubs: 'Clubs',
     school: 'School',
     holidays: 'Holidays',
+    todo: 'To do',
   };
   const NAV_ITEMS = [
     { key: 'home', href: 'index.html', icon: 'home', label: 'Home' },
     { key: 'calendar', href: 'calendar.html', icon: 'calendar', label: 'Calendar' },
     { key: 'shopping', href: 'shopping.html', icon: 'basket', label: 'Shopping' },
+    { key: 'todo', href: 'todo.html', icon: 'checklist', label: 'To do' },
     { key: 'clubs', href: 'clubs.html', icon: 'dumbbell', label: 'Clubs' },
     { key: 'school', href: 'school.html', icon: 'backpack', label: 'School' },
     { key: 'holidays', href: 'holidays.html', icon: 'suitcase', label: 'Holidays' },
@@ -43,13 +50,14 @@
     if (!el) return;
     el.innerHTML = '<div class="tabs-inner">' + NAV_ITEMS.map(i =>
       '<a class="tab-btn" href="' + i.href + '" data-active="' + (i.key === PAGE) + '">' +
-      '<span class="icon">' + icon(i.icon, 20) + '</span>' + i.label + '</a>'
+      '<span class="icon">' + icon(i.icon, 18) + '</span>' + i.label + '</a>'
     ).join('') + '</div>';
   }
 
   function buildAuthGate() {
     const el = document.getElementById('authGate');
     if (!el) return;
+    if (!GATE_ENABLED) { el.style.display = 'none'; return; }
     el.innerHTML =
       '<div class="gate-badge">' + icon('home', 26) + '</div>' +
       '<h2>Mongewell Byre</h2>' +
@@ -80,7 +88,7 @@
   }
 
   function setLocked(locked) {
-    document.body.classList.toggle('gate-locked', locked);
+    document.body.classList.toggle('gate-locked', GATE_ENABLED && locked);
   }
 
   function buildAuthWidget() {
@@ -118,7 +126,19 @@
           });
         }
       } else {
-        el.innerHTML = '';
+        if (GATE_ENABLED) {
+          el.innerHTML = '';
+        } else {
+          el.innerHTML = '<button id="signInBtn">Sign in</button>';
+          document.getElementById('signInBtn').addEventListener('click', () => {
+            const email = window.prompt('Email address:');
+            if (!email) return;
+            window.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } })
+              .then(({ error }) => {
+                alert(error ? ('Could not send the link: ' + error.message) : 'Check that inbox for a sign-in link.');
+              });
+          });
+        }
       }
     }
   }

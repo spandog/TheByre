@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>To do — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="todo">
+
+<header class="top" id="app-header"></header>
+<div id="authGate"></div>
+
+<main>
+  <div class="shop-add">
+    <input type="text" id="todoInput" placeholder="Add something to do…" autocomplete="off">
+    <button class="btn primary" style="flex:0 0 auto; padding:0 18px;" id="todoAddBtn">Add</button>
+  </div>
+  <div id="todoActive"></div>
+  <div id="todoCheckedWrap" style="display:none">
+    <p class="section-label">Done</p>
+    <div id="todoChecked"></div>
+    <button class="clear-btn" id="clearChecked">Clear ticked items</button>
+  </div>
+  <div id="todoEmpty" class="empty-state" style="display:none">
+    <div class="glyph" id="todoEmptyGlyph"></div><p>Nothing to do</p><p>Add whatever needs doing.</p>
+  </div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="dueSheetBackdrop" hidden>
+  <div class="sheet">
+    <h3>Add a due date</h3>
+    <p class="event-meta" id="dueSheetItemLabel"></p>
+    <label class="field-label">Due (optional)</label>
+    <input type="date" id="dueDateInput">
+    <div class="sheet-row">
+      <button class="btn ghost" id="dueCancel">Skip</button>
+      <button class="btn primary" id="dueSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="push.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  document.getElementById('todoEmptyGlyph').innerHTML = icon('checklist', 40);
+  let items = [];
+  let dueEditId = null;
+
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function dueMeta(item) {
+    if (!item.due_date) return '';
+    const n = daysUntil(item.due_date);
+    if (n < 0) return 'overdue · ' + formatDayHeading(item.due_date);
+    return 'due ' + formatDayHeading(item.due_date);
+  }
+
+  function render() {
+    const active = items.filter(i => !i.checked)
+      .sort((a, b) => (a.due_date || '9999-99-99').localeCompare(b.due_date || '9999-99-99'));
+    const checked = items.filter(i => i.checked);
+    document.getElementById('todoEmpty').style.display = items.length === 0 ? 'block' : 'none';
+    document.getElementById('todoActive').innerHTML = active.map(rowHtml).join('');
+    document.getElementById('todoCheckedWrap').style.display = checked.length ? 'block' : 'none';
+    document.getElementById('todoChecked').innerHTML = checked.map(rowHtml).join('');
+
+    document.querySelectorAll('.shop-item .check, .shop-item .shop-text').forEach(el => {
+      el.addEventListener('click', (e) => toggle(e.currentTarget.closest('.shop-item').dataset.id));
+    });
+    document.querySelectorAll('.shop-del').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        remove(e.currentTarget.closest('.shop-item').dataset.id);
+      });
+    });
+  }
+  function rowHtml(item) {
+    const meta = dueMeta(item);
+    return '<div class="shop-item" data-checked="' + !!item.checked + '" data-id="' + item.id + '">' +
+      '<span class="check" data-checked="' + !!item.checked + '">' + (item.checked ? '✓' : '') + '</span>' +
+      '<span class="shop-text">' + escapeHtml(item.text) +
+      (meta ? ' <span style="color:var(--ink-faint);font-size:12px">· ' + escapeHtml(meta) + '</span>' : '') + '</span>' +
+      '<button class="shop-del">×</button></div>';
+  }
+
+  document.getElementById('todoAddBtn').addEventListener('click', add);
+  document.getElementById('todoInput').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  async function add() {
+    const input = document.getElementById('todoInput');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    const { data, error } = await window.sb.from('todo_items').insert({ text, checked: false }).select().single();
+    if (!error && data) openDueSheet(data.id, data.text);
+    load();
+  }
+
+  const dueBackdrop = document.getElementById('dueSheetBackdrop');
+  function openDueSheet(id, text) {
+    dueEditId = id;
+    document.getElementById('dueSheetItemLabel').textContent = text;
+    document.getElementById('dueDateInput').value = '';
+    dueBackdrop.hidden = false;
+  }
+  document.getElementById('dueCancel').addEventListener('click', () => dueBackdrop.hidden = true);
+  document.getElementById('dueSave').addEventListener('click', async () => {
+    const due = document.getElementById('dueDateInput').value || null;
+    if (dueEditId) await window.sb.from('todo_items').update({ due_date: due }).eq('id', dueEditId);
+    dueBackdrop.hidden = true;
+    load();
+  });
+
+  async function toggle(id) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    await window.sb.from('todo_items').update({ checked: !item.checked }).eq('id', id);
+    load();
+  }
+  async function remove(id) {
+    await window.sb.from('todo_items').delete().eq('id', id);
+    load();
+  }
+  document.getElementById('clearChecked').addEventListener('click', async () => {
+    const ids = items.filter(i => i.checked).map(i => i.id);
+    if (ids.length) await window.sb.from('todo_items').delete().in('id', ids);
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('todo_items').select('*').order('added_at', { ascending: true }).limit(500);
+    if (error) { showStatus('Could not load the list: ' + error.message); return; }
+    items = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+  } else {
+    load();
+    window.sb.channel('todo-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todo_items' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

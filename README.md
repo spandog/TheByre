@@ -58,9 +58,14 @@ school dates, holidays, packing items — appears for the other in real time.
   drops every ingredient onto the shopping list in one tap
 - `clubs.html` — recurring weekly clubs (swimming, gymnastics, etc) with
   who it's for, address and timings, grouped by day
+- `todo.html` — a shared to-do list, with an optional due date per item
+  (skip it in the prompt if it's not needed) — items due within a week
+  surface on the home dashboard
 - `school.html` — term dates and school events
 - `holidays.html` — trips with countdowns and a packing list per trip
-- `schema.sql` — run once in Supabase
+- `schema.sql` — run once in Supabase. `add-push-subscriptions.sql` and
+  `add-todo-items.sql` are small incremental additions to it, for whenever
+  those features were set up after the initial run
 - `manifest.json`, `sw.js`, `icon-192.png`, `icon-512.png` — makes the site
   installable as a PWA (add to home screen, opens full screen like an app)
 - `style.css`, `db.js`, `layout.js`, `icons.js`, `config.js`, `push.js` —

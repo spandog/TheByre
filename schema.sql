@@ -60,6 +60,15 @@ create table if not exists meal_ideas (
   created_at timestamptz not null default now()
 );
 
+create table if not exists todo_items (
+  id uuid primary key default gen_random_uuid(),
+  text text not null,
+  checked boolean not null default false,
+  due_date date,
+  notes text,
+  added_at timestamptz not null default now()
+);
+
 create table if not exists push_subscriptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null default auth.uid(),
@@ -89,6 +98,7 @@ alter table packing_items enable row level security;
 alter table clubs enable row level security;
 alter table meal_ideas enable row level security;
 alter table push_subscriptions enable row level security;
+alter table todo_items enable row level security;
 
 create policy "family read/write events" on events
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -117,6 +127,9 @@ create policy "family read/write meal ideas" on meal_ideas
 create policy "own push subscription" on push_subscriptions
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+create policy "family read/write todo" on todo_items
+  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
 -- Turn on realtime so both phones see changes live.
 alter publication supabase_realtime add table events;
 alter publication supabase_realtime add table shopping_items;
@@ -125,3 +138,4 @@ alter publication supabase_realtime add table holidays;
 alter publication supabase_realtime add table packing_items;
 alter publication supabase_realtime add table clubs;
 alter publication supabase_realtime add table meal_ideas;
+alter publication supabase_realtime add table todo_items;

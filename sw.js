@@ -1,6 +1,6 @@
 // Bump this on every deploy so returning visitors pick up new files
 // (same convention as bcinvitational.com's sw.js).
-const CACHE_NAME = 'family-hub-v4';
+const CACHE_NAME = 'family-hub-v6';
 
 const SHELL_FILES = [
   'index.html',
@@ -9,6 +9,7 @@ const SHELL_FILES = [
   'clubs.html',
   'school.html',
   'holidays.html',
+  'todo.html',
   'style.css',
   'db.js',
   'layout.js',

@@ -10,7 +10,7 @@
 <meta name="theme-color" content="#5C7A5E">
 <link rel="apple-touch-icon" href="icon-192.png">
 </head>
-<body data-page="home" class="gate-locked">
+<body data-page="home">
 
 <header class="top" id="app-header"></header>
 <div id="authGate"></div>
@@ -81,7 +81,8 @@
     window.sb.from('shopping_items').select('*').eq('checked', false),
     window.sb.from('school_dates').select('*').gte('date', todayISO()).order('date', { ascending: true }).limit(1),
     window.sb.from('holidays').select('*').gte('start_date', todayISO()).order('start_date', { ascending: true }).limit(1),
-  ]).then(([clubsRes, bdayRes, shopRes, schoolRes, holRes]) => {
+    window.sb.from('todo_items').select('*').eq('checked', false),
+  ]).then(([clubsRes, bdayRes, shopRes, schoolRes, holRes, todoRes]) => {
     const rows = [];
 
     if (!clubsRes.error && clubsRes.data.length) {
@@ -121,6 +122,21 @@
       const h = holRes.data[0];
       const n = daysUntil(h.start_date);
       rows.push({ icon: 'suitcase', href: 'holidays.html', label: h.title, meta: n + ' day' + (n === 1 ? '' : 's') + ' to go' });
+    }
+
+    if (!todoRes.error && todoRes.data.length) {
+      const withDue = todoRes.data.filter(t => t.due_date).sort((a, b) => a.due_date.localeCompare(b.due_date));
+      const n = todoRes.data.length;
+      if (withDue.length && daysUntil(withDue[0].due_date) <= 7) {
+        const t = withDue[0];
+        const days = daysUntil(t.due_date);
+        rows.push({
+          icon: 'checklist', href: 'todo.html', label: t.text,
+          meta: days < 0 ? 'overdue · ' + formatDayHeading(t.due_date) : 'due ' + formatDayHeading(t.due_date),
+        });
+      } else {
+        rows.push({ icon: 'checklist', href: 'todo.html', label: n + ' thing' + (n === 1 ? '' : 's') + ' to do', meta: '' });
+      }
     }
 
     if (rows.length) {
