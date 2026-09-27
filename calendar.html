@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calendar — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="calendar">
+
+<header class="top" id="app-header"></header>
+
+<div class="chip-row" id="chips">
+  <button class="chip" data-active="true" data-cat="all">All</button>
+  <button class="chip" data-cat="general">General</button>
+  <button class="chip" data-cat="holiday">Holidays</button>
+  <button class="chip" data-cat="school">School</button>
+  <button class="chip" data-cat="activity">Activities</button>
+  <button class="chip" data-cat="birthday">Birthdays</button>
+  <button class="chip" data-cat="anniversary">Anniversaries</button>
+</div>
+
+<main>
+  <div class="month-nav">
+    <div class="nav-btns"><button id="prevMonth" aria-label="Previous month">‹</button></div>
+    <h2 id="monthLabel">Month</h2>
+    <div class="nav-btns">
+      <button class="today-btn" id="jumpToday">Today</button>
+      <button id="nextMonth" aria-label="Next month">›</button>
+    </div>
+  </div>
+  <div class="weekday-row">
+    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+  </div>
+  <div class="month-grid" id="monthGrid"></div>
+
+  <div class="day-detail">
+    <h2 id="dayDetailHeading">Today</h2>
+    <div id="dayDetailList"></div>
+  </div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+
+<button class="fab" id="fabAdd">+</button>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="sheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="sheetTitle">New event</h3>
+    <label class="field-label">What is it?</label>
+    <input type="text" id="evTitle" placeholder="e.g. Parents' evening">
+    <label class="field-label">Date</label>
+    <input type="date" id="evDate">
+    <label class="field-label">Time (optional)</label>
+    <input type="time" id="evTime">
+    <label class="field-label">Category</label>
+    <div class="cat-picker">
+      <button class="cat-opt general" data-active="true" data-cat="general">● General</button>
+      <button class="cat-opt holiday" data-cat="holiday">● Holiday</button>
+      <button class="cat-opt school" data-cat="school">● School</button>
+      <button class="cat-opt activity" data-cat="activity">● Activity</button>
+      <button class="cat-opt birthday" data-cat="birthday">● Birthday</button>
+      <button class="cat-opt anniversary" data-cat="anniversary">● Anniversary</button>
+    </div>
+    <div id="recurringRow" style="display:none">
+      <label class="field-label">Repeats every year, on this date</label>
+      <select id="evReminder">
+        <option value="">No reminder</option>
+        <option value="0">On the day</option>
+        <option value="1">1 day before</option>
+        <option value="3">3 days before</option>
+        <option value="7">1 week before</option>
+        <option value="14">2 weeks before</option>
+      </select>
+    </div>
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="evNotes"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="evCancel">Cancel</button>
+      <button class="btn primary" id="evSave">Save</button>
+    </div>
+    <div class="sheet-row" id="deleteRow" style="display:none">
+      <button class="btn danger" id="evDelete">Delete this event</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  const today = new Date(todayISO() + 'T00:00:00');
+  const state = {
+    events: [],
+    activeCat: 'all',
+    editingId: null,
+    viewYear: today.getFullYear(),
+    viewMonth: today.getMonth(), // 0-11
+    selectedDate: todayISO(),
+  };
+
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  // Build a map of ISO date -> events falling on it within the displayed month
+  function eventsForMonth(year, monthIndex) {
+    const map = {};
+    state.events.forEach(e => {
+      if (state.activeCat !== 'all' && e.category !== state.activeCat) return;
+      let iso;
+      if (e.recurring) {
+        iso = monthOccurrence(e.date, year, monthIndex);
+      } else {
+        const d = new Date(e.date + 'T00:00:00');
+        if (d.getFullYear() !== year || d.getMonth() !== monthIndex) return;
+        iso = e.date;
+      }
+      (map[iso] = map[iso] || []).push(e);
+    });
+    return map;
+  }
+
+  function eventsOnDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    return eventsForMonth(d.getFullYear(), d.getMonth())[iso] || [];
+  }
+
+  function renderGrid() {
+    document.getElementById('monthLabel').textContent =
+      new Date(state.viewYear, state.viewMonth, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+    const firstOfMonth = new Date(state.viewYear, state.viewMonth, 1);
+    const firstWeekday = (firstOfMonth.getDay() + 6) % 7; // 0 = Monday
+    const gridStart = new Date(state.viewYear, state.viewMonth, 1 - firstWeekday);
+    const map = eventsForMonth(state.viewYear, state.viewMonth);
+
+    let html = '';
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(gridStart);
+      d.setDate(gridStart.getDate() + i);
+      const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const outside = d.getMonth() !== state.viewMonth;
+      const isToday = iso === todayISO();
+      const isSelected = iso === state.selectedDate;
+      const dayEvents = map[iso] || [];
+      const dots = dayEvents.slice(0, 4).map(e => '<span class="dot ' + e.category + '"></span>').join('');
+      html += '<div class="day-cell' + (outside ? ' outside' : '') + (isToday ? ' today' : '') + (isSelected ? ' selected' : '') + '" data-date="' + iso + '">' +
+        '<span class="num">' + d.getDate() + '</span>' +
+        '<span class="day-dots">' + dots + '</span></div>';
+    }
+    document.getElementById('monthGrid').innerHTML = html;
+    document.querySelectorAll('.day-cell').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const iso = cell.dataset.date;
+        const d = new Date(iso + 'T00:00:00');
+        if (d.getMonth() !== state.viewMonth || d.getFullYear() !== state.viewYear) {
+          state.viewYear = d.getFullYear();
+          state.viewMonth = d.getMonth();
+        }
+        state.selectedDate = iso;
+        renderGrid();
+        renderDayDetail();
+      });
+    });
+  }
+
+  function renderDayDetail() {
+    const heading = document.getElementById('dayDetailHeading');
+    heading.textContent = formatDayHeading(state.selectedDate) === 'Today' || formatDayHeading(state.selectedDate) === 'Tomorrow'
+      ? formatDayHeading(state.selectedDate)
+      : new Date(state.selectedDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    const dayEvents = eventsOnDate(state.selectedDate).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+    const list = document.getElementById('dayDetailList');
+    if (!dayEvents.length) {
+      list.innerHTML = '<p class="event-meta">Nothing on this day. Tap + to add something.</p>';
+      return;
+    }
+    list.innerHTML = dayEvents.map(e => {
+      let metaBits = [];
+      if (e.recurring) metaBits.push(e.category === 'anniversary' ? (yearsAt(e.date) + ' years') : ('turns ' + yearsAt(e.date)));
+      metaBits.push(formatTime(e.time));
+      if (e.notes) metaBits.push(e.notes);
+      const meta = metaBits.filter(Boolean).join(' · ');
+      return '<div class="event-row" data-id="' + e.id + '">' +
+        '<span class="dot ' + e.category + '"></span>' +
+        '<div class="event-main"><div class="event-title">' + escapeHtml(e.title) + '</div>' +
+        (meta ? '<div class="event-meta">' + escapeHtml(meta) + '</div>' : '') + '</div></div>';
+    }).join('');
+    list.querySelectorAll('.event-row').forEach(row => row.addEventListener('click', () => openSheet(row.dataset.id)));
+  }
+
+  function changeMonth(delta) {
+    state.viewMonth += delta;
+    if (state.viewMonth < 0) { state.viewMonth = 11; state.viewYear--; }
+    if (state.viewMonth > 11) { state.viewMonth = 0; state.viewYear++; }
+    renderGrid();
+  }
+  document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
+  document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+  document.getElementById('jumpToday').addEventListener('click', () => {
+    state.viewYear = today.getFullYear();
+    state.viewMonth = today.getMonth();
+    state.selectedDate = todayISO();
+    renderGrid();
+    renderDayDetail();
+  });
+
+  // Swipe left/right on the grid to change month
+  (function () {
+    let startX = null;
+    const grid = document.getElementById('monthGrid');
+    grid.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, { passive: true });
+    grid.addEventListener('touchend', (e) => {
+      if (startX === null) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 45) changeMonth(dx < 0 ? 1 : -1);
+      startX = null;
+    }, { passive: true });
+  })();
+
+  document.querySelectorAll('#chips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#chips .chip').forEach(c => c.dataset.active = 'false');
+      chip.dataset.active = 'true';
+      state.activeCat = chip.dataset.cat;
+      renderGrid();
+      renderDayDetail();
+    });
+  });
+
+  const backdrop = document.getElementById('sheetBackdrop');
+  function isRecurringCat(cat) { return cat === 'birthday' || cat === 'anniversary'; }
+  function openSheet(id) {
+    state.editingId = id || null;
+    const ev = id ? state.events.find(e => e.id === id) : null;
+    document.getElementById('sheetTitle').textContent = ev ? 'Edit event' : 'New event';
+    document.getElementById('evTitle').value = ev ? ev.title : '';
+    document.getElementById('evDate').value = ev ? ev.date : state.selectedDate;
+    document.getElementById('evTime').value = ev ? (ev.time || '') : '';
+    document.getElementById('evNotes').value = ev ? (ev.notes || '') : '';
+    const cat = ev ? ev.category : 'general';
+    document.querySelectorAll('.cat-opt').forEach(o => o.dataset.active = (o.dataset.cat === cat));
+    document.getElementById('recurringRow').style.display = isRecurringCat(cat) ? 'block' : 'none';
+    document.getElementById('evReminder').value = ev && ev.remind_days_before != null ? String(ev.remind_days_before) : '';
+    document.getElementById('deleteRow').style.display = ev ? 'flex' : 'none';
+    backdrop.hidden = false;
+  }
+  document.getElementById('fabAdd').addEventListener('click', () => openSheet(null));
+  document.getElementById('evCancel').addEventListener('click', () => backdrop.hidden = true);
+  document.querySelectorAll('.cat-opt').forEach(o => o.addEventListener('click', () => {
+    document.querySelectorAll('.cat-opt').forEach(x => x.dataset.active = 'false');
+    o.dataset.active = 'true';
+    document.getElementById('recurringRow').style.display = isRecurringCat(o.dataset.cat) ? 'block' : 'none';
+  }));
+
+  document.getElementById('evSave').addEventListener('click', async () => {
+    const title = document.getElementById('evTitle').value.trim();
+    const date = document.getElementById('evDate').value;
+    if (!title || !date) return;
+    const cat = document.querySelector('.cat-opt[data-active="true"]').dataset.cat;
+    const reminderVal = document.getElementById('evReminder').value;
+    const payload = {
+      title, date,
+      time: document.getElementById('evTime').value || null,
+      notes: document.getElementById('evNotes').value.trim() || null,
+      category: cat,
+      recurring: isRecurringCat(cat),
+      remind_days_before: isRecurringCat(cat) && reminderVal !== '' ? parseInt(reminderVal, 10) : null,
+    };
+    if (state.editingId) {
+      await window.sb.from('events').update(payload).eq('id', state.editingId);
+    } else {
+      await window.sb.from('events').insert(payload);
+    }
+    backdrop.hidden = true;
+    load();
+  });
+  document.getElementById('evDelete').addEventListener('click', async () => {
+    if (state.editingId) await window.sb.from('events').delete().eq('id', state.editingId);
+    backdrop.hidden = true;
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('events').select('*').order('date', { ascending: true }).limit(1000);
+    if (error) { showStatus('Could not load the calendar: ' + error.message); return; }
+    state.events = data;
+    renderGrid();
+    renderDayDetail();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    renderGrid();
+    renderDayDetail();
+  } else {
+    load();
+    window.sb.channel('events-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

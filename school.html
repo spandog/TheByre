@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>School — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="school">
+
+<header class="top" id="app-header"></header>
+
+<main>
+  <div id="schoolList"></div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<button class="fab" id="fabAdd">+</button>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="sheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="sheetTitle">New school date</h3>
+    <label class="field-label">What is it?</label>
+    <input type="text" id="fTitle" placeholder="e.g. Half term begins, Sports day">
+    <label class="field-label">Date</label>
+    <input type="date" id="fDate">
+    <label class="field-label">Term (optional)</label>
+    <input type="text" id="fTerm" placeholder="e.g. Autumn term">
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="fNotes"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="fCancel">Cancel</button>
+      <button class="btn primary" id="fSave">Save</button>
+    </div>
+    <div class="sheet-row" id="deleteRow" style="display:none">
+      <button class="btn danger" id="fDelete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  let rows = [];
+  let editingId = null;
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function render() {
+    const el = document.getElementById('schoolList');
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">' + icon('backpack', 40) + '<p>No school dates yet</p><p>Add term dates as they come home.</p></div>';
+      return;
+    }
+    el.innerHTML = rows.map(r => {
+      const meta = [r.term, r.notes].filter(Boolean).join(' · ');
+      return '<div class="list-row" data-id="' + r.id + '">' +
+        '<span class="dot school"></span>' +
+        '<div class="event-main"><div class="event-title">' + escapeHtml(r.title) + '</div>' +
+        '<div class="event-meta">' + formatDayHeading(r.date) + (meta ? ' · ' + escapeHtml(meta) : '') + '</div></div></div>';
+    }).join('');
+    el.querySelectorAll('.list-row').forEach(row => row.addEventListener('click', () => openSheet(row.dataset.id)));
+  }
+
+  const backdrop = document.getElementById('sheetBackdrop');
+  function openSheet(id) {
+    editingId = id || null;
+    const r = id ? rows.find(x => x.id === id) : null;
+    document.getElementById('sheetTitle').textContent = r ? 'Edit school date' : 'New school date';
+    document.getElementById('fTitle').value = r ? r.title : '';
+    document.getElementById('fDate').value = r ? r.date : todayISO();
+    document.getElementById('fTerm').value = r ? (r.term || '') : '';
+    document.getElementById('fNotes').value = r ? (r.notes || '') : '';
+    document.getElementById('deleteRow').style.display = r ? 'flex' : 'none';
+    backdrop.hidden = false;
+  }
+  document.getElementById('fabAdd').addEventListener('click', () => openSheet(null));
+  document.getElementById('fCancel').addEventListener('click', () => backdrop.hidden = true);
+
+  document.getElementById('fSave').addEventListener('click', async () => {
+    const title = document.getElementById('fTitle').value.trim();
+    const date = document.getElementById('fDate').value;
+    if (!title || !date) return;
+    const payload = {
+      title, date,
+      term: document.getElementById('fTerm').value.trim() || null,
+      notes: document.getElementById('fNotes').value.trim() || null,
+    };
+    if (editingId) await window.sb.from('school_dates').update(payload).eq('id', editingId);
+    else await window.sb.from('school_dates').insert(payload);
+    backdrop.hidden = true;
+    load();
+  });
+  document.getElementById('fDelete').addEventListener('click', async () => {
+    if (editingId) await window.sb.from('school_dates').delete().eq('id', editingId);
+    backdrop.hidden = true;
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('school_dates').select('*').order('date', { ascending: true }).limit(500);
+    if (error) { showStatus('Could not load school dates: ' + error.message); return; }
+    rows = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+  } else {
+    load();
+    window.sb.channel('school-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'school_dates' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

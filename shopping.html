@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shopping list — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="shopping">
+
+<header class="top" id="app-header"></header>
+
+<main>
+  <div class="hub-card">
+    <h3>Meal ideas</h3>
+    <div id="mealList"></div>
+    <a class="see-all" href="#" id="addMealLink">+ Add a meal idea</a>
+  </div>
+
+  <div class="shop-add">
+    <input type="text" id="shopInput" placeholder="Add an item…" autocomplete="off">
+    <select id="shopSource" style="flex:0 0 auto; width:auto;">
+      <option value="general">General</option>
+      <option value="sainsburys">Sainsbury's</option>
+      <option value="gousto">Gousto</option>
+      <option value="amazon">Amazon</option>
+    </select>
+    <button class="btn primary" style="flex:0 0 auto; padding:0 18px;" id="shopAddBtn">Add</button>
+  </div>
+  <div class="chip-row" id="sourceChips" style="padding:0 0 12px">
+    <button class="chip" data-active="true" data-source="all">All</button>
+    <button class="chip" data-source="general">General</button>
+    <button class="chip" data-source="sainsburys">Sainsbury's</button>
+    <button class="chip" data-source="gousto">Gousto</button>
+    <button class="chip" data-source="amazon">Amazon</button>
+  </div>
+  <div id="shopActive"></div>
+  <div id="shopCheckedWrap" style="display:none">
+    <p class="section-label">Got it</p>
+    <div id="shopChecked"></div>
+    <button class="clear-btn" id="clearChecked">Clear ticked items</button>
+  </div>
+  <div id="shopEmpty" class="empty-state" style="display:none">
+    <div class="glyph" id="shopEmptyGlyph"></div><p>Nothing on the list</p><p>Add whatever's running low.</p>
+  </div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="mealSheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="mealSheetTitle">New meal idea</h3>
+    <label class="field-label">Dish</label>
+    <input type="text" id="mTitle" placeholder="e.g. Fajitas">
+    <label class="field-label">Ingredients (one per line)</label>
+    <textarea id="mIngredients" placeholder="Chicken breast&#10;Peppers&#10;Tortilla wraps&#10;Soured cream" style="min-height:110px"></textarea>
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="mNotes"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="mCancel">Cancel</button>
+      <button class="btn primary" id="mSave">Save</button>
+    </div>
+    <div class="sheet-row" id="mDeleteRow" style="display:none">
+      <button class="btn danger" id="mDelete">Delete this idea</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  document.getElementById('shopEmptyGlyph').innerHTML = icon('basket', 40);
+  let items = [];
+  let meals = [];
+  let editingMealId = null;
+  let activeSource = 'all';
+  const SOURCE_LABELS = { general: '', sainsburys: "Sainsbury's", gousto: 'Gousto', amazon: 'Amazon' };
+  document.querySelectorAll('#sourceChips .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('#sourceChips .chip').forEach(c => c.dataset.active = 'false');
+      chip.dataset.active = 'true';
+      activeSource = chip.dataset.source;
+      render();
+    });
+  });
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function render() {
+    const visible = activeSource === 'all' ? items : items.filter(i => i.source === activeSource);
+    const active = visible.filter(i => !i.checked);
+    const checked = visible.filter(i => i.checked);
+    document.getElementById('shopEmpty').style.display = visible.length === 0 ? 'block' : 'none';
+    document.getElementById('shopActive').innerHTML = active.map(rowHtml).join('');
+    document.getElementById('shopCheckedWrap').style.display = checked.length ? 'block' : 'none';
+    document.getElementById('shopChecked').innerHTML = checked.map(rowHtml).join('');
+
+    document.querySelectorAll('.shop-item .check, .shop-item .shop-text').forEach(el => {
+      el.addEventListener('click', (e) => toggle(e.currentTarget.closest('.shop-item').dataset.id));
+    });
+    document.querySelectorAll('.shop-del').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        remove(e.currentTarget.closest('.shop-item').dataset.id);
+      });
+    });
+  }
+  function rowHtml(item) {
+    const label = SOURCE_LABELS[item.source] || '';
+    const amazonLink = item.source === 'amazon'
+      ? '<a href="https://www.amazon.co.uk/s?k=' + encodeURIComponent(item.text) + '" target="_blank" rel="noopener" style="font-size:12px;flex:0 0 auto" onclick="event.stopPropagation()">Search →</a>'
+      : '';
+    return '<div class="shop-item" data-checked="' + !!item.checked + '" data-id="' + item.id + '">' +
+      '<span class="check" data-checked="' + !!item.checked + '">' + (item.checked ? '✓' : '') + '</span>' +
+      '<span class="shop-text">' + escapeHtml(item.text) + (label ? ' <span style="color:var(--ink-faint);font-size:12px">· ' + label + '</span>' : '') + '</span>' +
+      amazonLink +
+      '<button class="shop-del">×</button></div>';
+  }
+
+  function renderMeals() {
+    const el = document.getElementById('mealList');
+    if (!meals.length) { el.innerHTML = '<p class="event-meta">No meal ideas saved yet.</p>'; return; }
+    el.innerHTML = meals.map(m =>
+      '<div class="list-row" data-id="' + m.id + '">' +
+      '<div class="event-main"><div class="event-title">' + escapeHtml(m.title) + '</div>' +
+      (m.notes ? '<div class="event-meta">' + escapeHtml(m.notes) + '</div>' : '') + '</div>' +
+      '<button class="btn ghost" style="flex:0 0 auto;padding:6px 12px;font-size:12.5px" data-action="use">Add to list</button>' +
+      '</div>'
+    ).join('');
+    el.querySelectorAll('[data-action="use"]').forEach(btn => btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      addMealToList(e.currentTarget.closest('.list-row').dataset.id);
+    }));
+    el.querySelectorAll('.list-row').forEach(row => row.addEventListener('click', () => openMealSheet(row.dataset.id)));
+  }
+  async function addMealToList(id) {
+    const meal = meals.find(m => m.id === id);
+    if (!meal || !meal.ingredients) return;
+    const lines = meal.ingredients.split('\n').map(s => s.trim()).filter(Boolean);
+    const existing = new Set(items.map(i => i.text.toLowerCase()));
+    const toAdd = lines.filter(l => !existing.has(l.toLowerCase())).map(text => ({ text, checked: false }));
+    if (toAdd.length) await window.sb.from('shopping_items').insert(toAdd);
+    load();
+  }
+  const mealBackdrop = document.getElementById('mealSheetBackdrop');
+  function openMealSheet(id) {
+    editingMealId = id || null;
+    const m = id ? meals.find(x => x.id === id) : null;
+    document.getElementById('mealSheetTitle').textContent = m ? 'Edit meal idea' : 'New meal idea';
+    document.getElementById('mTitle').value = m ? m.title : '';
+    document.getElementById('mIngredients').value = m ? (m.ingredients || '') : '';
+    document.getElementById('mNotes').value = m ? (m.notes || '') : '';
+    document.getElementById('mDeleteRow').style.display = m ? 'flex' : 'none';
+    mealBackdrop.hidden = false;
+  }
+  document.getElementById('addMealLink').addEventListener('click', (e) => { e.preventDefault(); openMealSheet(null); });
+  document.getElementById('mCancel').addEventListener('click', () => mealBackdrop.hidden = true);
+  document.getElementById('mSave').addEventListener('click', async () => {
+    const title = document.getElementById('mTitle').value.trim();
+    if (!title) return;
+    const payload = {
+      title,
+      ingredients: document.getElementById('mIngredients').value.trim() || null,
+      notes: document.getElementById('mNotes').value.trim() || null,
+    };
+    if (editingMealId) await window.sb.from('meal_ideas').update(payload).eq('id', editingMealId);
+    else await window.sb.from('meal_ideas').insert(payload);
+    mealBackdrop.hidden = true;
+    loadMeals();
+  });
+  document.getElementById('mDelete').addEventListener('click', async () => {
+    if (editingMealId) await window.sb.from('meal_ideas').delete().eq('id', editingMealId);
+    mealBackdrop.hidden = true;
+    loadMeals();
+  });
+  async function loadMeals() {
+    const { data, error } = await window.sb.from('meal_ideas').select('*').order('title').limit(200);
+    if (error) { showStatus('Could not load meal ideas: ' + error.message); return; }
+    meals = data;
+    renderMeals();
+  }
+
+  document.getElementById('shopAddBtn').addEventListener('click', add);
+  document.getElementById('shopInput').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+  async function add() {
+    const input = document.getElementById('shopInput');
+    const text = input.value.trim();
+    if (!text) return;
+    const source = document.getElementById('shopSource').value;
+    input.value = '';
+    await window.sb.from('shopping_items').insert({ text, checked: false, source });
+    load();
+  }
+  async function toggle(id) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    await window.sb.from('shopping_items').update({ checked: !item.checked }).eq('id', id);
+    load();
+  }
+  async function remove(id) {
+    await window.sb.from('shopping_items').delete().eq('id', id);
+    load();
+  }
+  document.getElementById('clearChecked').addEventListener('click', async () => {
+    const ids = items.filter(i => i.checked).map(i => i.id);
+    if (ids.length) await window.sb.from('shopping_items').delete().in('id', ids);
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('shopping_items').select('*').order('added_at', { ascending: true }).limit(500);
+    if (error) { showStatus('Could not load the list: ' + error.message); return; }
+    items = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+    renderMeals();
+  } else {
+    load();
+    loadMeals();
+    window.sb.channel('shopping-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items' }, load)
+      .subscribe();
+    window.sb.channel('meals-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meal_ideas' }, loadMeals)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

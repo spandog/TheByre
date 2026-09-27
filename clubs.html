@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clubs — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="clubs">
+
+<header class="top" id="app-header"></header>
+
+<main>
+  <div id="clubsList"></div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<button class="fab" id="fabAdd">+</button>
+<nav class="tabs" id="app-nav"></nav>
+
+<div class="sheet-backdrop" id="sheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="sheetTitle">New club</h3>
+    <label class="field-label">Club (e.g. Swimming, Gymnastics)</label>
+    <input type="text" id="cName">
+    <label class="field-label">Who's it for (optional)</label>
+    <input type="text" id="cChild">
+    <label class="field-label">Day</label>
+    <select id="cDay">
+      <option value="1">Monday</option>
+      <option value="2">Tuesday</option>
+      <option value="3">Wednesday</option>
+      <option value="4">Thursday</option>
+      <option value="5">Friday</option>
+      <option value="6">Saturday</option>
+      <option value="0">Sunday</option>
+    </select>
+    <label class="field-label">Start time</label>
+    <input type="time" id="cStart">
+    <label class="field-label">End time (optional)</label>
+    <input type="time" id="cEnd">
+    <label class="field-label">Address (optional)</label>
+    <input type="text" id="cAddress">
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="cNotes" placeholder="Kit needed, who's dropping off, etc"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="cCancel">Cancel</button>
+      <button class="btn primary" id="cSave">Save</button>
+    </div>
+    <div class="sheet-row" id="deleteRow" style="display:none">
+      <button class="btn danger" id="cDelete">Delete this club</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let rows = [];
+  let editingId = null;
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function render() {
+    const el = document.getElementById('clubsList');
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">' + icon('dumbbell', 40) + '<p>No clubs added yet</p><p>Add swimming, gymnastics, anything on a weekly slot.</p></div>';
+      return;
+    }
+    const byDay = {};
+    rows.forEach(r => { (byDay[r.day_of_week] = byDay[r.day_of_week] || []).push(r); });
+    const order = [1, 2, 3, 4, 5, 6, 0];
+    el.innerHTML = order.filter(d => byDay[d]).map(d => {
+      const dayRows = byDay[d].sort((a, b) => (a.start_time || '99').localeCompare(b.start_time || '99')).map(c => {
+        const meta = [[formatTime(c.start_time), c.end_time ? formatTime(c.end_time) : ''].filter(Boolean).join('–'), c.address].filter(Boolean).join(' · ');
+        return '<div class="list-row" data-id="' + c.id + '">' +
+          '<span class="dot activity"></span>' +
+          '<div class="event-main"><div class="event-title">' + escapeHtml(c.name) + (c.child ? ' — ' + escapeHtml(c.child) : '') + '</div>' +
+          (meta ? '<div class="event-meta">' + escapeHtml(meta) + '</div>' : '') +
+          (c.notes ? '<div class="event-meta">' + escapeHtml(c.notes) + '</div>' : '') +
+          '</div></div>';
+      }).join('');
+      return '<div class="day-group"><h2>' + DAY_NAMES[d] + '</h2>' + dayRows + '</div>';
+    }).join('');
+    el.querySelectorAll('.list-row').forEach(row => row.addEventListener('click', () => openSheet(row.dataset.id)));
+  }
+
+  const backdrop = document.getElementById('sheetBackdrop');
+  function openSheet(id) {
+    editingId = id || null;
+    const c = id ? rows.find(x => x.id === id) : null;
+    document.getElementById('sheetTitle').textContent = c ? 'Edit club' : 'New club';
+    document.getElementById('cName').value = c ? c.name : '';
+    document.getElementById('cChild').value = c ? (c.child || '') : '';
+    document.getElementById('cDay').value = c ? String(c.day_of_week) : '1';
+    document.getElementById('cStart').value = c ? (c.start_time || '') : '';
+    document.getElementById('cEnd').value = c ? (c.end_time || '') : '';
+    document.getElementById('cAddress').value = c ? (c.address || '') : '';
+    document.getElementById('cNotes').value = c ? (c.notes || '') : '';
+    document.getElementById('deleteRow').style.display = c ? 'flex' : 'none';
+    backdrop.hidden = false;
+  }
+  document.getElementById('fabAdd').addEventListener('click', () => openSheet(null));
+  document.getElementById('cCancel').addEventListener('click', () => backdrop.hidden = true);
+
+  document.getElementById('cSave').addEventListener('click', async () => {
+    const name = document.getElementById('cName').value.trim();
+    if (!name) return;
+    const payload = {
+      name,
+      child: document.getElementById('cChild').value.trim() || null,
+      day_of_week: parseInt(document.getElementById('cDay').value, 10),
+      start_time: document.getElementById('cStart').value || null,
+      end_time: document.getElementById('cEnd').value || null,
+      address: document.getElementById('cAddress').value.trim() || null,
+      notes: document.getElementById('cNotes').value.trim() || null,
+    };
+    if (editingId) await window.sb.from('clubs').update(payload).eq('id', editingId);
+    else await window.sb.from('clubs').insert(payload);
+    backdrop.hidden = true;
+    load();
+  });
+  document.getElementById('cDelete').addEventListener('click', async () => {
+    if (editingId) await window.sb.from('clubs').delete().eq('id', editingId);
+    backdrop.hidden = true;
+    load();
+  });
+
+  async function load() {
+    const { data, error } = await window.sb.from('clubs').select('*').order('day_of_week').limit(500);
+    if (error) { showStatus('Could not load clubs: ' + error.message); return; }
+    rows = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+  } else {
+    load();
+    window.sb.channel('clubs-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clubs' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>

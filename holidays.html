@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Holidays — Mongewell Byre</title>
+<link rel="icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#5C7A5E">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body data-page="holidays">
+
+<header class="top" id="app-header"></header>
+
+<main>
+  <div id="holidayList"></div>
+</main>
+
+<p class="status-note" id="statusNote" style="display:none"></p>
+<button class="fab" id="fabAdd">+</button>
+<nav class="tabs" id="app-nav"></nav>
+
+<!-- Add/edit holiday -->
+<div class="sheet-backdrop" id="holSheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="holSheetTitle">New holiday</h3>
+    <label class="field-label">Where / what</label>
+    <input type="text" id="hTitle" placeholder="e.g. Cornwall, half term">
+    <label class="field-label">Start date</label>
+    <input type="date" id="hStart">
+    <label class="field-label">End date (optional)</label>
+    <input type="date" id="hEnd">
+    <label class="field-label">Notes (optional)</label>
+    <textarea id="hNotes"></textarea>
+    <div class="sheet-row">
+      <button class="btn ghost" id="hCancel">Cancel</button>
+      <button class="btn primary" id="hSave">Save</button>
+    </div>
+    <div class="sheet-row" id="hDeleteRow" style="display:none">
+      <button class="btn danger" id="hDelete">Delete this holiday</button>
+    </div>
+  </div>
+</div>
+
+<!-- Packing list -->
+<div class="sheet-backdrop" id="packSheetBackdrop" hidden>
+  <div class="sheet">
+    <h3 id="packSheetTitle">Packing list</h3>
+    <div class="shop-add">
+      <input type="text" id="packInput" placeholder="Add an item…" autocomplete="off">
+      <button class="btn primary" style="flex:0 0 auto; padding:0 18px;" id="packAddBtn">Add</button>
+    </div>
+    <div id="packList"></div>
+    <div class="sheet-row">
+      <button class="btn ghost" id="packClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="icons.js"></script>
+<script src="db.js"></script>
+<script src="layout.js"></script>
+<script>
+(function () {
+  let holidays = [];
+  let editingId = null;
+  let packHolidayId = null;
+  let packItems = [];
+
+  function showStatus(msg) {
+    const el = document.getElementById('statusNote');
+    el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+  }
+
+  function render() {
+    const el = document.getElementById('holidayList');
+    if (!holidays.length) {
+      el.innerHTML = '<div class="empty-state">' + icon('suitcase', 40) + '<p>Nothing booked yet</p><p>Add a trip to start a packing list.</p></div>';
+      return;
+    }
+    el.innerHTML = holidays.map(h => {
+      const n = daysUntil(h.start_date);
+      const range = h.end_date ? formatDayHeading(h.start_date) + ' – ' + formatDayHeading(h.end_date) : formatDayHeading(h.start_date);
+      const countdown = n >= 0 ? (n === 0 ? 'Today' : n + ' day' + (n === 1 ? '' : 's') + ' to go') : 'Past';
+      return '<div class="hub-card">' +
+        '<div class="event-row" style="border:none;padding:0;cursor:pointer" data-id="' + h.id + '" data-action="edit">' +
+        '<div class="event-main"><div class="event-title">' + escapeHtml(h.title) + '</div>' +
+        '<div class="event-meta">' + range + (h.notes ? ' · ' + escapeHtml(h.notes) : '') + '</div></div>' +
+        '<div class="countdown-num" style="font-size:22px">' + countdown + '</div>' +
+        '</div>' +
+        '<a class="see-all" href="#" data-id="' + h.id + '" data-action="pack">Packing list →</a>' +
+        '</div>';
+    }).join('');
+    el.querySelectorAll('[data-action="edit"]').forEach(row => row.addEventListener('click', () => openHolSheet(row.dataset.id)));
+    el.querySelectorAll('[data-action="pack"]').forEach(link => link.addEventListener('click', (e) => {
+      e.preventDefault();
+      openPackSheet(link.dataset.id);
+    }));
+  }
+
+  // --- Holiday add/edit ---
+  const holBackdrop = document.getElementById('holSheetBackdrop');
+  function openHolSheet(id) {
+    editingId = id || null;
+    const h = id ? holidays.find(x => x.id === id) : null;
+    document.getElementById('holSheetTitle').textContent = h ? 'Edit holiday' : 'New holiday';
+    document.getElementById('hTitle').value = h ? h.title : '';
+    document.getElementById('hStart').value = h ? h.start_date : todayISO();
+    document.getElementById('hEnd').value = h ? (h.end_date || '') : '';
+    document.getElementById('hNotes').value = h ? (h.notes || '') : '';
+    document.getElementById('hDeleteRow').style.display = h ? 'flex' : 'none';
+    holBackdrop.hidden = false;
+  }
+  document.getElementById('fabAdd').addEventListener('click', () => openHolSheet(null));
+  document.getElementById('hCancel').addEventListener('click', () => holBackdrop.hidden = true);
+  document.getElementById('hSave').addEventListener('click', async () => {
+    const title = document.getElementById('hTitle').value.trim();
+    const start_date = document.getElementById('hStart').value;
+    if (!title || !start_date) return;
+    const payload = {
+      title, start_date,
+      end_date: document.getElementById('hEnd').value || null,
+      notes: document.getElementById('hNotes').value.trim() || null,
+    };
+    if (editingId) await window.sb.from('holidays').update(payload).eq('id', editingId);
+    else await window.sb.from('holidays').insert(payload);
+    holBackdrop.hidden = true;
+    load();
+  });
+  document.getElementById('hDelete').addEventListener('click', async () => {
+    if (editingId) await window.sb.from('holidays').delete().eq('id', editingId);
+    holBackdrop.hidden = true;
+    load();
+  });
+
+  // --- Packing list ---
+  const packBackdrop = document.getElementById('packSheetBackdrop');
+  async function openPackSheet(holidayId) {
+    packHolidayId = holidayId;
+    const h = holidays.find(x => x.id === holidayId);
+    document.getElementById('packSheetTitle').textContent = 'Packing — ' + (h ? h.title : '');
+    await loadPack();
+    packBackdrop.hidden = false;
+  }
+  document.getElementById('packClose').addEventListener('click', () => packBackdrop.hidden = true);
+  document.getElementById('packAddBtn').addEventListener('click', addPackItem);
+  document.getElementById('packInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPackItem(); });
+  async function addPackItem() {
+    const input = document.getElementById('packInput');
+    const text = input.value.trim();
+    if (!text || !packHolidayId) return;
+    input.value = '';
+    await window.sb.from('packing_items').insert({ holiday_id: packHolidayId, text, packed: false });
+    loadPack();
+  }
+  function renderPack() {
+    const el = document.getElementById('packList');
+    if (!packItems.length) { el.innerHTML = '<p class="event-meta">Nothing added yet.</p>'; return; }
+    el.innerHTML = packItems.map(i =>
+      '<div class="shop-item" data-checked="' + !!i.packed + '" data-id="' + i.id + '">' +
+      '<span class="check" data-checked="' + !!i.packed + '">' + (i.packed ? '✓' : '') + '</span>' +
+      '<span class="shop-text">' + escapeHtml(i.text) + '</span>' +
+      '<button class="shop-del">×</button></div>'
+    ).join('');
+    el.querySelectorAll('.check, .shop-text').forEach(node => node.addEventListener('click', e => {
+      const id = e.currentTarget.closest('.shop-item').dataset.id;
+      const item = packItems.find(x => x.id === id);
+      window.sb.from('packing_items').update({ packed: !item.packed }).eq('id', id).then(loadPack);
+    }));
+    el.querySelectorAll('.shop-del').forEach(node => node.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = e.currentTarget.closest('.shop-item').dataset.id;
+      window.sb.from('packing_items').delete().eq('id', id).then(loadPack);
+    }));
+  }
+  async function loadPack() {
+    const { data, error } = await window.sb.from('packing_items').select('*').eq('holiday_id', packHolidayId).order('text');
+    if (error) { showStatus('Could not load the packing list: ' + error.message); return; }
+    packItems = data;
+    renderPack();
+  }
+
+  async function load() {
+    const { data, error } = await window.sb.from('holidays').select('*').order('start_date', { ascending: true }).limit(500);
+    if (error) { showStatus('Could not load holidays: ' + error.message); return; }
+    holidays = data;
+    render();
+  }
+
+  if (!window.sb) {
+    showStatus('Add your Supabase project keys to config.js to bring this to life.');
+    render();
+  } else {
+    load();
+    window.sb.channel('holidays-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'holidays' }, load)
+      .subscribe();
+  }
+})();
+</script>
+</body>
+</html>
