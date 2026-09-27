@@ -44,10 +44,10 @@
   --gold: #D6C36C; --gold-bg: #38331B; --danger: #D08579;
 }
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
-body { display: flex; flex-direction: column; max-width: 640px; margin: 0 auto; min-height: 100%; padding-bottom: env(safe-area-inset-bottom, 0px); }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-font-smoothing: antialiased; overflow: hidden; }
+body { display: flex; flex-direction: column; max-width: 640px; margin: 0 auto; height: 100%; overflow: hidden; }
 
-header.top { padding: 18px 20px 14px; position: sticky; top: 0; background: var(--bg); z-index: 5; border-bottom: 1px solid var(--line); padding-top: calc(18px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+header.top { padding: 18px 20px 14px; flex-shrink: 0; background: var(--bg); z-index: 5; border-bottom: 1px solid var(--line); padding-top: calc(18px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 header.top .brand { display: flex; flex-direction: column; }
 header.top .brand-row { display: flex; align-items: center; gap: 10px; }
 header.top .brand-badge {
@@ -62,7 +62,7 @@ header.top h1 { font-family: var(--font-display); font-weight: 600; font-size: 2
 .auth-widget button { font-family: var(--font-body); font-size: 13px; font-weight: 500; padding: 7px 13px; border-radius: 100px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer; }
 .auth-widget .who { color: var(--ink-faint); margin-right: 8px; }
 
-main { flex: 1; padding: 16px 20px 100px; }
+main { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 20px 100px; }
 
 .day-group { margin-bottom: 22px; }
 .day-group h2 { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink-soft); margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
@@ -106,7 +106,7 @@ main { flex: 1; padding: 16px 20px 100px; }
 .empty-state .glyph { font-size: 28px; margin-bottom: 10px; }
 .empty-state p { margin: 4px 0; font-size: 14.5px; }
 
-.chip-row { display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px 0; scrollbar-width: none; }
+.chip-row { display: flex; gap: 8px; overflow-x: auto; padding: 12px 20px 0; scrollbar-width: none; flex-shrink: 0; }
 .chip-row::-webkit-scrollbar { display: none; }
 .chip { flex-shrink: 0; font-size: 13px; font-weight: 500; padding: 6px 13px; border-radius: 100px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer; }
 .chip[data-active="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -160,7 +160,7 @@ textarea { resize: vertical; min-height: 60px; }
 label.field-label { font-size: 12.5px; color: var(--ink-soft); display: block; margin: 12px 0 5px; }
 label.field-label:first-child { margin-top: 0; }
 
-nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
+nav.tabs { flex-shrink: 0; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
 .tabs-inner { max-width: 640px; width: 100%; display: flex; padding: 0 6px; gap: 0; }
 .tab-btn { flex: 1; background: none; border: none; font-family: var(--font-body); font-size: 10.3px; font-weight: 500; color: var(--ink-faint); padding: 6px 0 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; text-decoration: none; }
 .tab-btn .icon { font-size: 18px; }
@@ -220,7 +220,7 @@ nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify
   .check, .btn, .chip, .cat-opt, .fab, .tab-btn, .sheet, .sheet-backdrop { animation: none !important; transition: none !important; }
 }
 
-.status-note { font-size: 13px; color: var(--ink-faint); text-align: center; padding: 10px 20px 0; }
+.status-note { font-size: 13px; color: var(--ink-faint); text-align: center; padding: 10px 20px 0; flex-shrink: 0; }
 a { color: var(--blue); }
 
 /* --- Sign-in gate: nothing but the header shows until signed in --- */
