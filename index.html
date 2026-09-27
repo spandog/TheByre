@@ -16,51 +16,15 @@
 <div id="authGate"></div>
 
 <main>
-  <svg class="home-hero" viewBox="0 0 400 92" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M0 74c40-6 70 4 100-2s55-14 90-8 60 10 95 4 75-10 115-2" />
-    <g class="accent" stroke-width="1.6">
-      <path d="M150 58 182 34l32 24" />
-      <path d="M160 56v22a2 2 0 0 0 2 2h40a2 2 0 0 0 2-2V56" />
-      <path d="M175 80V68h14v12" />
-    </g>
-    <path d="M60 66c3-10 2-18-4-26M64 40c5 3 6 9 4 15" />
-    <path d="M330 64c3-9 2-16-3-23M334 41c4 3 5 8 3 13" />
-    <circle cx="256" cy="20" r="9" />
-  </svg>
-
-  <div class="hub-card">
-    <h3><span id="icoToday"></span>Today</h3>
+  <section class="today-section">
+    <h2>Today</h2>
     <div id="todayList"></div>
-  </div>
+  </section>
 
-  <div class="hub-card">
-    <h3><span id="icoClubs"></span>Clubs today</h3>
-    <div id="clubsToday"></div>
-    <a class="see-all" href="clubs.html">See all clubs →</a>
-  </div>
-
-  <div class="hub-card">
-    <h3><span id="icoBday"></span>Coming up</h3>
-    <div id="birthdaySnapshot"></div>
-  </div>
-
-  <div class="hub-card">
-    <h3><span id="icoShop"></span>Shopping list</h3>
-    <div id="shopSnapshot"></div>
-    <a class="see-all" href="shopping.html">Open the full list →</a>
-  </div>
-
-  <div class="hub-card">
-    <h3><span id="icoSchool"></span>Next up at school</h3>
-    <div id="schoolSnapshot"></div>
-    <a class="see-all" href="school.html">See term dates →</a>
-  </div>
-
-  <div class="hub-card">
-    <h3><span id="icoHol"></span>Next holiday</h3>
-    <div id="holidaySnapshot"></div>
-    <a class="see-all" href="holidays.html">See details →</a>
-  </div>
+  <section class="glance-section" id="glanceSection" style="display:none">
+    <h2>Coming up</h2>
+    <div id="glanceList"></div>
+  </section>
 </main>
 
 <p class="status-note" id="statusNote" style="display:none"></p>
@@ -75,17 +39,18 @@
 <script src="layout.js"></script>
 <script>
 (function () {
-  document.getElementById('icoToday').innerHTML = icon('clock');
-  document.getElementById('icoClubs').innerHTML = icon('dumbbell');
-  document.getElementById('icoBday').innerHTML = icon('cake');
-  document.getElementById('icoShop').innerHTML = icon('basket');
-  document.getElementById('icoSchool').innerHTML = icon('backpack');
-  document.getElementById('icoHol').innerHTML = icon('suitcase');
-
   function showStatus(msg) {
     const el = document.getElementById('statusNote');
     el.textContent = msg;
     el.style.display = msg ? 'block' : 'none';
+  }
+
+  function rowHtml(r) {
+    return '<a class="glance-row" href="' + r.href + '">' +
+      '<span class="glance-icon">' + icon(r.icon, 20) + '</span>' +
+      '<div class="event-main"><div class="event-title">' + escapeHtml(r.label) + '</div>' +
+      (r.meta ? '<div class="event-meta">' + escapeHtml(r.meta) + '</div>' : '') + '</div>' +
+      '<span class="glance-chev">›</span></a>';
   }
 
   if (!window.sb) {
@@ -93,7 +58,7 @@
     return;
   }
 
-  // Today's events
+  // Today's events — the one thing always shown, even when empty
   window.sb.from('events').select('*').eq('date', todayISO()).order('time', { ascending: true })
     .then(({ data, error }) => {
       const el = document.getElementById('todayList');
@@ -108,68 +73,61 @@
       ).join('');
     });
 
-  // Clubs today
-  window.sb.from('clubs').select('*').eq('day_of_week', new Date().getDay()).order('start_time', { ascending: true })
-    .then(({ data, error }) => {
-      const el = document.getElementById('clubsToday');
-      if (error) { el.innerHTML = '<p class="event-meta">Could not load clubs.</p>'; return; }
-      if (!data.length) { el.innerHTML = '<p class="event-meta">Nothing on today.</p>'; return; }
-      el.innerHTML = data.map(c =>
-        '<div class="event-row" style="cursor:default"><span class="dot activity"></span>' +
-        '<div class="event-main"><div class="event-title">' + escapeHtml(c.name) + (c.child ? ' — ' + escapeHtml(c.child) : '') + '</div>' +
-        '<div class="event-meta">' + [formatTime(c.start_time), c.address].filter(Boolean).join(' · ') + '</div></div></div>'
-      ).join('');
-    });
+  // Everything else collapses into one compact list, and only the rows that
+  // actually have something to say appear at all.
+  Promise.all([
+    window.sb.from('clubs').select('*').eq('day_of_week', new Date().getDay()).order('start_time', { ascending: true }),
+    window.sb.from('events').select('*').in('category', ['birthday', 'anniversary']).eq('recurring', true),
+    window.sb.from('shopping_items').select('*').eq('checked', false),
+    window.sb.from('school_dates').select('*').gte('date', todayISO()).order('date', { ascending: true }).limit(1),
+    window.sb.from('holidays').select('*').gte('start_date', todayISO()).order('start_date', { ascending: true }).limit(1),
+  ]).then(([clubsRes, bdayRes, shopRes, schoolRes, holRes]) => {
+    const rows = [];
 
-  // Birthdays and anniversaries in the next 30 days
-  window.sb.from('events').select('*').in('category', ['birthday', 'anniversary']).eq('recurring', true)
-    .then(({ data, error }) => {
-      const el = document.getElementById('birthdaySnapshot');
-      if (error) { el.innerHTML = '<p class="event-meta">Could not load these.</p>'; return; }
-      const upcoming = data
+    if (!clubsRes.error && clubsRes.data.length) {
+      const names = clubsRes.data.map(c => c.name).join(', ');
+      const times = clubsRes.data.map(c => formatTime(c.start_time)).filter(Boolean).join(', ');
+      rows.push({ icon: 'dumbbell', href: 'clubs.html', label: names + ' today', meta: times });
+    }
+
+    if (!bdayRes.error && bdayRes.data.length) {
+      const upcoming = bdayRes.data
         .map(e => Object.assign({}, e, { occ: nextOccurrence(e.date) }))
         .filter(e => daysUntil(e.occ) <= 30)
         .sort((a, b) => a.occ.localeCompare(b.occ));
-      if (!upcoming.length) { el.innerHTML = '<p class="event-meta">Nothing in the next month.</p>'; return; }
-      el.innerHTML = upcoming.map(e => {
+      if (upcoming.length) {
+        const e = upcoming[0];
         const label = e.category === 'anniversary' ? yearsAt(e.date) + ' years' : 'turns ' + yearsAt(e.date);
-        return '<div class="event-row" style="cursor:default"><span class="dot ' + e.category + '"></span>' +
-          '<div class="event-main"><div class="event-title">' + escapeHtml(e.title) + '</div>' +
-          '<div class="event-meta">' + formatDayHeading(e.occ) + ' · ' + label + '</div></div></div>';
-      }).join('');
-    });
+        rows.push({
+          icon: e.category === 'anniversary' ? 'rings' : 'cake',
+          href: 'calendar.html',
+          label: e.title,
+          meta: formatDayHeading(e.occ) + ' · ' + label,
+        });
+      }
+    }
 
-  // Shopping snapshot
-  window.sb.from('shopping_items').select('*').eq('checked', false).order('added_at', { ascending: true }).limit(5)
-    .then(({ data, error }) => {
-      const el = document.getElementById('shopSnapshot');
-      if (error) { el.innerHTML = '<p class="event-meta">Could not load the list.</p>'; return; }
-      if (!data.length) { el.innerHTML = '<p class="event-meta">All done — nothing outstanding.</p>'; return; }
-      el.innerHTML = '<p class="event-meta">' + data.map(i => escapeHtml(i.text)).join(', ') + '</p>';
-    });
+    if (!shopRes.error && shopRes.data.length) {
+      const n = shopRes.data.length;
+      rows.push({ icon: 'basket', href: 'shopping.html', label: n + ' item' + (n === 1 ? '' : 's') + ' on the shopping list', meta: '' });
+    }
 
-  // School snapshot
-  window.sb.from('school_dates').select('*').gte('date', todayISO()).order('date', { ascending: true }).limit(1)
-    .then(({ data, error }) => {
-      const el = document.getElementById('schoolSnapshot');
-      if (error) { el.innerHTML = '<p class="event-meta">Could not load term dates.</p>'; return; }
-      if (!data.length) { el.innerHTML = '<p class="event-meta">Nothing coming up.</p>'; return; }
-      const e = data[0];
-      el.innerHTML = '<div class="event-title">' + escapeHtml(e.title) + '</div>' +
-        '<div class="event-meta">' + formatDayHeading(e.date) + '</div>';
-    });
+    if (!schoolRes.error && schoolRes.data.length) {
+      const e = schoolRes.data[0];
+      rows.push({ icon: 'backpack', href: 'school.html', label: e.title, meta: formatDayHeading(e.date) });
+    }
 
-  // Holiday countdown
-  window.sb.from('holidays').select('*').gte('start_date', todayISO()).order('start_date', { ascending: true }).limit(1)
-    .then(({ data, error }) => {
-      const el = document.getElementById('holidaySnapshot');
-      if (error) { el.innerHTML = '<p class="event-meta">Could not load holidays.</p>'; return; }
-      if (!data.length) { el.innerHTML = '<p class="event-meta">Nothing booked yet.</p>'; return; }
-      const h = data[0];
+    if (!holRes.error && holRes.data.length) {
+      const h = holRes.data[0];
       const n = daysUntil(h.start_date);
-      el.innerHTML = '<div class="countdown-num">' + n + '</div>' +
-        '<div class="countdown-label">day' + (n === 1 ? '' : 's') + ' until ' + escapeHtml(h.title) + '</div>';
-    });
+      rows.push({ icon: 'suitcase', href: 'holidays.html', label: h.title, meta: n + ' day' + (n === 1 ? '' : 's') + ' to go' });
+    }
+
+    if (rows.length) {
+      document.getElementById('glanceSection').style.display = 'block';
+      document.getElementById('glanceList').innerHTML = rows.map(rowHtml).join('');
+    }
+  });
 })();
 </script>
 </body>

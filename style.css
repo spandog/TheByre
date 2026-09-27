@@ -118,6 +118,27 @@ main { flex: 1; padding: 16px 20px 100px; }
 .countdown-num { font-family: var(--font-display); font-size: 34px; font-weight: 600; line-height: 1; }
 .countdown-label { font-size: 13.5px; color: var(--ink-soft); margin-top: 4px; }
 
+.today-section { margin-bottom: 26px; }
+.today-section h2 {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px dashed var(--line);
+}
+.glance-section h2 {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink-soft);
+  margin: 0 0 4px; padding-bottom: 6px; border-bottom: 1px dashed var(--line);
+}
+.glance-row {
+  display: flex; align-items: center; gap: 12px; padding: 12px 0;
+  border-bottom: 1px solid var(--line); text-decoration: none; color: inherit;
+}
+.glance-row:last-child { border-bottom: none; }
+.glance-icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  background: var(--moss-bg); color: var(--moss);
+  display: flex; align-items: center; justify-content: center;
+}
+.glance-chev { color: var(--ink-faint); font-size: 17px; flex-shrink: 0; }
+
 /* Shopping / lists */
 .shop-add { display: flex; gap: 8px; margin-bottom: 16px; }
 .shop-add input[type=text] { flex: 1; }
@@ -199,8 +220,6 @@ nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify
   .check, .btn, .chip, .cat-opt, .fab, .tab-btn, .sheet, .sheet-backdrop { animation: none !important; transition: none !important; }
 }
 
-.home-hero { width: 100%; height: auto; display: block; margin: 2px 0 14px; color: var(--line); }
-.home-hero .accent { color: var(--moss); }
 .status-note { font-size: 13px; color: var(--ink-faint); text-align: center; padding: 10px 20px 0; }
 a { color: var(--blue); }
 
