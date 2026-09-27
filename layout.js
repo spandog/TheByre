@@ -47,11 +47,48 @@
     ).join('') + '</div>';
   }
 
+  function buildAuthGate() {
+    const el = document.getElementById('authGate');
+    if (!el) return;
+    el.innerHTML =
+      '<div class="gate-badge">' + icon('home', 26) + '</div>' +
+      '<h2>Mongewell Byre</h2>' +
+      '<p class="gate-sub">Sign in to see the calendar, shopping list and everything else. Nothing on here shows before that.</p>' +
+      '<form id="gateForm">' +
+      '<input type="email" id="gateEmail" placeholder="Your email address" autocomplete="email" required>' +
+      '<button type="submit" class="btn primary" id="gateSubmit">Send sign-in link</button>' +
+      '</form>' +
+      '<p class="gate-status" id="gateStatus"></p>';
+
+    document.getElementById('gateForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!window.sb) return;
+      const email = document.getElementById('gateEmail').value.trim();
+      if (!email) return;
+      const btn = document.getElementById('gateSubmit');
+      const status = document.getElementById('gateStatus');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      const { error } = await window.sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.href },
+      });
+      btn.disabled = false;
+      btn.textContent = 'Send sign-in link';
+      status.textContent = error ? error.message : 'Check that inbox for a sign-in link.';
+    });
+  }
+
+  function setLocked(locked) {
+    document.body.classList.toggle('gate-locked', locked);
+  }
+
   function buildAuthWidget() {
     const el = document.getElementById('authWidget');
     if (!el) return;
     if (!window.sb) {
       el.innerHTML = '<span class="who">Not connected</span>';
+      setLocked(false); // nothing to gate against if Supabase isn't configured yet
       return;
     }
     window.sb.auth.getUser().then(({ data }) => {
@@ -62,6 +99,7 @@
     });
 
     async function renderAuth(user) {
+      setLocked(!user);
       if (user) {
         let bellHtml = '';
         if (typeof notificationsStatus === 'function') {
@@ -80,25 +118,15 @@
           });
         }
       } else {
-        el.innerHTML = '<button id="signInBtn">Sign in</button>';
-        document.getElementById('signInBtn').addEventListener('click', promptSignIn);
+        el.innerHTML = '';
       }
     }
-  }
-
-  function promptSignIn() {
-    const email = window.prompt('Family email address:');
-    if (!email) return;
-    window.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } })
-      .then(({ error }) => {
-        if (error) { alert('Could not send the link: ' + error.message); return; }
-        alert('Check that inbox for a sign-in link.');
-      });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     buildHeader();
     buildNav();
+    buildAuthGate();
     buildAuthWidget();
   });
 
