@@ -60,6 +60,15 @@ create table if not exists meal_ideas (
   created_at timestamptz not null default now()
 );
 
+create table if not exists push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid(),
+  endpoint text not null unique,
+  p256dh text not null,
+  auth_key text not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists packing_items (
   id uuid primary key default gen_random_uuid(),
   holiday_id uuid not null references holidays(id) on delete cascade,
@@ -79,6 +88,7 @@ alter table holidays enable row level security;
 alter table packing_items enable row level security;
 alter table clubs enable row level security;
 alter table meal_ideas enable row level security;
+alter table push_subscriptions enable row level security;
 
 create policy "family read/write events" on events
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -100,6 +110,12 @@ create policy "family read/write clubs" on clubs
 
 create policy "family read/write meal ideas" on meal_ideas
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- Each signed-in device manages only its own subscription row. The Edge
+-- Function that actually sends push notifications uses the service role key,
+-- which bypasses RLS entirely, so it can read every row regardless.
+create policy "own push subscription" on push_subscriptions
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- Turn on realtime so both phones see changes live.
 alter publication supabase_realtime add table events;

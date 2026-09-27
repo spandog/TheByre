@@ -1,6 +1,6 @@
 // Bump this on every deploy so returning visitors pick up new files
 // (same convention as bcinvitational.com's sw.js).
-const CACHE_NAME = 'family-hub-v1';
+const CACHE_NAME = 'family-hub-v2';
 
 const SHELL_FILES = [
   'index.html',
@@ -12,6 +12,7 @@ const SHELL_FILES = [
   'style.css',
   'db.js',
   'layout.js',
+  'push.js',
   'manifest.json',
 ];
 
@@ -41,24 +42,21 @@ self.addEventListener('fetch', (event) => {
 });
 
 // --- Push notifications ---
-// Not wired up yet: this fires once you add Firebase Cloud Messaging and a
-// server-side sender (see README's "Push notifications" section). FCM sends
-// "data"-type messages nested one level deeper than a plain payload, same
-// as on bcinvitational.com, so unwrap it the same way here.
+// Standard Web Push (VAPID) — sent by the send-birthday-reminders Supabase
+// Edge Function via the web-push library, as a plain JSON payload:
+// { "title": "...", "body": "...", "url": "index.html" }
 self.addEventListener('push', (event) => {
   if (!event.data) return;
-  let payload;
+  let data;
   try {
-    payload = event.data.json();
+    data = event.data.json();
   } catch (e) {
     return;
   }
-  const data = payload.data || payload;
   const title = data.title || 'Family Hub';
   const options = {
     body: data.body || '',
     icon: 'icon-192.png',
-    image: data.image || undefined,
     data: { url: data.url || 'index.html' },
   };
   event.waitUntil(self.registration.showNotification(title, options));

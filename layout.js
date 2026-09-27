@@ -61,10 +61,24 @@
       renderAuth(session && session.user);
     });
 
-    function renderAuth(user) {
+    async function renderAuth(user) {
       if (user) {
-        el.innerHTML = '<span class="who">' + escapeHtml(user.email) + '</span><button id="signOutBtn">Sign out</button>';
+        let bellHtml = '';
+        if (typeof notificationsStatus === 'function') {
+          const status = await notificationsStatus();
+          if (status === 'default') bellHtml = '<button id="notifyBtn">Enable notifications</button>';
+        }
+        el.innerHTML = '<span class="who">' + escapeHtml(user.email) + '</span>' + bellHtml + '<button id="signOutBtn">Sign out</button>';
         document.getElementById('signOutBtn').addEventListener('click', () => window.sb.auth.signOut());
+        const notifyBtn = document.getElementById('notifyBtn');
+        if (notifyBtn) {
+          notifyBtn.addEventListener('click', async () => {
+            notifyBtn.textContent = 'Enabling…';
+            const ok = await subscribeToPush();
+            notifyBtn.textContent = ok ? 'Notifications on' : 'Enable notifications';
+            if (ok) notifyBtn.disabled = true;
+          });
+        }
       } else {
         el.innerHTML = '<button id="signInBtn">Sign in</button>';
         document.getElementById('signInBtn').addEventListener('click', promptSignIn);

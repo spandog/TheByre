@@ -63,10 +63,13 @@ school dates, holidays, packing items — appears for the other in real time.
 - `schema.sql` — run once in Supabase
 - `manifest.json`, `sw.js`, `icon-192.png`, `icon-512.png` — makes the site
   installable as a PWA (add to home screen, opens full screen like an app)
-- `style.css`, `db.js`, `layout.js`, `icons.js`, `config.js` — shared styles,
-  the icon set, the Supabase client, and the header/nav. Everything sits
-  flat at the repo root, no subfolders, since that's the most reliable way
-  to upload from a phone
+- `style.css`, `db.js`, `layout.js`, `icons.js`, `config.js`, `push.js` —
+  shared styles, the icon set, the Supabase client, the header/nav, and
+  push notification subscription. Everything sits flat at the repo root,
+  no subfolders, since that's the most reliable way to upload from a phone
+- `edge-function-send-birthday-reminders.ts`, `schedule-reminders.sql` —
+  not part of the website itself; paste these into Supabase as described
+  under Push notifications below
 
 ## On Sainsbury's, Gousto and Amazon
 
@@ -83,30 +86,46 @@ an Amazon search for that item. If Sainsbury's or Gousto ever publish a
 real partner API this could plug in properly, but nothing today makes
 that reliable.
 
-## Push notifications and the Sunday week-ahead image
+## Push notifications (birthdays and anniversaries)
 
-This isn't built yet, on purpose: it needs two extra accounts before any
-code is worth writing, so say the word once you've got them and I'll wire
-it up in the same style as bcinvitational.com's push flow.
+Built and ready to switch on. It uses standard Web Push (VAPID) rather than
+Firebase — one less account to create, and it works the same way in every
+browser. Here's what's involved and how to finish setting it up:
 
-1. A Firebase project (free) for Firebase Cloud Messaging, the same as
-   BCI uses — gives you a VAPID key pair for web push.
-2. A Supabase Edge Function on a schedule (`pg_cron`), one job that runs
-   daily and checks for birthdays/anniversaries whose reminder falls
-   today, and a second that runs Sunday morning for the week-ahead image.
-3. For the image itself, the reliable route is rendering the week's
-   events to an actual PNG via a headless-rendering service (rather than
-   trying to draw one inside the Edge Function, which is fiddly and
-   fragile in that environment) — something like screenshotone.com or
-   htmlcsstoimage.com, both with a workable free tier.
+1. **Add the new table.** In the SQL Editor, run `add-push-subscriptions.sql`
+   (schema.sql itself is unchanged apart from this, no need to re-run it).
+2. **Deploy the Edge Function.** In the Supabase Dashboard, go to Edge
+   Functions -> Deploy a new function -> Via Editor. Name it exactly
+   `send-birthday-reminders`, paste in the contents of
+   `edge-function-send-birthday-reminders.ts`, and deploy.
+3. **Set its secrets.** Still on that function, add three secrets:
+   - `VAPID_PUBLIC_KEY`: `BPLXQX7H-5xgFMGoRGHAEDm57LvjLnxaXl745PI9hehEdAOb-3W3JrCOtGIuGXUwfCsQe9o25GpKykBiMGGCgTo`
+     (same value already in `config.js`)
+   - `VAPID_PRIVATE_KEY`: `NZ47IwLj4oOqjd4iod3CBrQY68SkY8IexmRGaXaWMxk`
+     (keep this one private — don't put it in the site's own files)
+   - `VAPID_SUBJECT`: `mailto:` followed by whichever email address you're
+     happy to have attached to the push messages
+4. **Schedule it.** In the SQL Editor, run `schedule-reminders.sql`. It
+   sets up a daily cron job (7am UTC by default) that calls the function.
+5. **Turn on notifications on each phone.** Once signed in on the live
+   site, an "Enable notifications" button appears next to your email in
+   the header. Tap it on both your phone and your wife's, and allow the
+   browser's permission prompt.
 
-The site, manifest and service worker are already set up to receive and
-show these once that backend exists — `sw.js` has the push handler
-ready and waiting.
+That's it from there: any birthday or anniversary with a reminder set (in
+the calendar's add/edit sheet) will trigger a push on whichever day you
+chose, on every device that's turned notifications on.
+
+The Sunday week-ahead image isn't built yet — it needs one more decision,
+which headless-rendering service to use for turning the week's events into
+an actual picture (screenshotone.com and htmlcsstoimage.com both have a
+workable free tier), since generating an image inside the Edge Function
+itself is fragile. Worth doing once the birthday reminders above are
+confirmed working on both your phones.
 
 ## Natural next steps
 
 - A custom domain instead of the github.io address, whenever you want one
-- The push notifications and weekly look-ahead image above
+- The Sunday week-ahead image, once you've picked a rendering service
 - Splitting "clubs" further if term-time and holiday-time schedules
   genuinely differ
