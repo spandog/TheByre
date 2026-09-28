@@ -74,6 +74,52 @@
     }).join('') + '</div>';
   }
 
+  // Two-step sign-in: email in, then the 6-digit code from the email typed
+  // straight back in. No link is involved, so it works inside the installed
+  // app (a link would open in the browser, which on iOS has separate storage).
+  function renderSignInFlow(box, onDone) {
+    let email = '';
+    function stepEmail(msg) {
+      box.innerHTML =
+        '<form class="signin-form">' +
+        '<input type="email" class="si-email" placeholder="Your email address" autocomplete="email" required>' +
+        '<button type="submit" class="btn primary si-btn">Send me a code</button>' +
+        '</form><p class="gate-status si-status">' + (msg || '') + '</p>';
+      box.querySelector('.signin-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!window.sb) return;
+        email = box.querySelector('.si-email').value.trim();
+        if (!email) return;
+        const btn = box.querySelector('.si-btn');
+        btn.disabled = true; btn.textContent = 'Sending…';
+        const { error } = await window.sb.auth.signInWithOtp({ email });
+        if (error) { stepEmail(escapeHtml(error.message)); return; }
+        stepCode();
+      });
+    }
+    function stepCode(msg) {
+      box.innerHTML =
+        '<form class="signin-form">' +
+        '<p class="gate-sub" style="margin:0 0 4px">We have emailed a code to ' + escapeHtml(email) + '. Enter it here.</p>' +
+        '<input type="text" class="si-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Code from the email" required>' +
+        '<button type="submit" class="btn primary si-btn">Sign in</button>' +
+        '<button type="button" class="btn ghost si-back">Use a different email</button>' +
+        '</form><p class="gate-status si-status">' + (msg || '') + '</p>';
+      box.querySelector('.si-back').addEventListener('click', () => stepEmail());
+      box.querySelector('.signin-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = box.querySelector('.si-code').value.trim();
+        if (!token) return;
+        const btn = box.querySelector('.si-btn');
+        btn.disabled = true; btn.textContent = 'Checking…';
+        const { error } = await window.sb.auth.verifyOtp({ email, token, type: 'email' });
+        if (error) { stepCode('That code did not work. Check it and try again.'); return; }
+        if (onDone) onDone();
+      });
+    }
+    stepEmail();
+  }
+
   function buildAuthGate() {
     const el = document.getElementById('authGate');
     if (!el) return;
@@ -82,29 +128,19 @@
       '<div class="gate-badge">' + icon('home', 26) + '</div>' +
       '<h2>Mongewell Byre</h2>' +
       '<p class="gate-sub">Sign in to see the calendar, shopping list and everything else. Nothing on here shows before that.</p>' +
-      '<form id="gateForm">' +
-      '<input type="email" id="gateEmail" placeholder="Your email address" autocomplete="email" required>' +
-      '<button type="submit" class="btn primary" id="gateSubmit">Send sign-in link</button>' +
-      '</form>' +
-      '<p class="gate-status" id="gateStatus"></p>';
+      '<div id="gateFlow" style="width:100%;max-width:320px"></div>';
+    renderSignInFlow(document.getElementById('gateFlow'));
+  }
 
-    document.getElementById('gateForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!window.sb) return;
-      const email = document.getElementById('gateEmail').value.trim();
-      if (!email) return;
-      const btn = document.getElementById('gateSubmit');
-      const status = document.getElementById('gateStatus');
-      btn.disabled = true;
-      btn.textContent = 'Sending…';
-      const { error } = await window.sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.href },
-      });
-      btn.disabled = false;
-      btn.textContent = 'Send sign-in link';
-      status.textContent = error ? error.message : 'Check that inbox for a sign-in link.';
-    });
+  function openSignInSheet() {
+    const back = document.createElement('div');
+    back.className = 'sheet-backdrop';
+    back.innerHTML = '<div class="sheet"><h3>Sign in</h3><div id="sheetFlow" style="margin-top:12px"></div>' +
+      '<div class="sheet-row"><button class="btn ghost" id="sheetClose">Close</button></div></div>';
+    document.body.appendChild(back);
+    const close = () => back.remove();
+    back.querySelector('#sheetClose').addEventListener('click', close);
+    renderSignInFlow(back.querySelector('#sheetFlow'), close);
   }
 
   function setLocked(locked) {
@@ -150,14 +186,7 @@
           el.innerHTML = '';
         } else {
           el.innerHTML = '<button id="signInBtn">Sign in</button>';
-          document.getElementById('signInBtn').addEventListener('click', () => {
-            const email = window.prompt('Email address:');
-            if (!email) return;
-            window.sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } })
-              .then(({ error }) => {
-                alert(error ? ('Could not send the link: ' + error.message) : 'Check that inbox for a sign-in link.');
-              });
-          });
+          document.getElementById('signInBtn').addEventListener('click', openSignInSheet);
         }
       }
     }
