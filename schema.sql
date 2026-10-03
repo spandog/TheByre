@@ -66,6 +66,7 @@ create table if not exists todo_items (
   text text not null,
   checked boolean not null default false,
   due_date date,
+  remind_days_before integer, -- e.g. 3 = notify 3 days before due_date; null = no reminder
   notes text,
   child text, -- optional freeform tag: who this is for
   added_at timestamptz not null default now()

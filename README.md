@@ -132,6 +132,73 @@ That's it from there: any birthday or anniversary with a reminder set (in
 the calendar's add/edit sheet) will trigger a push on whichever day you
 chose, on every device that's turned notifications on.
 
+## The daily "good morning" digest
+
+A second, separate notification: one push each morning summarising
+whatever's actually on that day, calendar events, clubs, bin day, school
+dates, anything due on the to-do list, and any holiday starting. Days with
+nothing on send nothing, on purpose, so the notification stays worth
+opening.
+
+It reuses the same VAPID secrets as the birthday reminders above, so if
+those are already set up there's nothing new to configure there.
+
+1. Deploy `edge-function-send-daily-digest.ts` as a new Edge Function
+   named exactly `send-daily-digest`, the same way as before.
+2. Run `schedule-daily-digest.sql` in the SQL Editor. It's set for 7am UTC;
+   change the `7` in the cron line if you'd rather a different time.
+
+## Three more reminders
+
+All three reuse the same VAPID secrets as the birthday reminders, so
+there's nothing new to configure there, just deploy each function and run
+the one combined SQL file.
+
+- **Bin night** (`edge-function-send-bin-reminder.ts`, function name
+  `send-bin-reminder`) — a push the evening before a bin needs to go out,
+  rather than the morning of, since by 7am it's often too late.
+- **The week ahead** (`edge-function-send-weekly-lookahead.ts`, function
+  name `send-weekly-lookahead`) — a Sunday evening summary of the coming
+  Monday to Sunday: events, clubs, bins, school, anything due.
+- **To-do reminders** (`edge-function-send-todo-reminders.ts`, function
+  name `send-todo-reminders`) — needs `add-todo-reminders.sql` run first,
+  which adds a reminder field to to-do items. Set a reminder in the sheet
+  that appears after adding something with a due date.
+
+Deploy all three functions, run `add-todo-reminders.sql` if it hasn't been
+already, then run `schedule-more-reminders.sql` once to put all three on
+their schedules.
+
+The home dashboard's Today list also now fades anything whose time has
+already passed, so by evening it isn't still showing the school run from
+that morning.
+
+## Instant notification when something new is added
+
+On top of the scheduled digests above, this sends a push the moment
+something new is added anywhere in the hub, a calendar event, a shopping
+item, a to-do, a club, a school date, a holiday, or a bin. It deliberately
+does not fire on edits or on ticking things off (clearing a shopping list
+would otherwise send one push per item), just on genuinely new additions.
+
+1. Deploy `edge-function-notify-on-insert.ts` as a new Edge Function named
+   exactly `notify-on-insert`, same as the others. It needs no new secrets.
+2. In the Supabase dashboard, go to Database, then Webhooks, then Create a
+   new webhook. Set it up once per table, repeating for: `events`,
+   `shopping_items`, `todo_items`, `clubs`, `school_dates`, `holidays`,
+   `bin_reminders`. For each one:
+   - Table: the one from the list above
+   - Events: tick only Insert
+   - Type: Supabase Edge Functions
+   - Edge Function: `notify-on-insert`
+   - HTTP Method: POST
+   - HTTP Headers: add one, `Authorization` set to `Bearer ` followed by
+     your publishable (anon) key from Project Settings -> API
+
+Seven webhooks in total, all pointing at the same one function. Add
+something to the shopping list from one phone and the other should get a
+push within a few seconds.
+
 The Sunday week-ahead image isn't built yet — it needs one more decision,
 which headless-rendering service to use for turning the week's events into
 an actual picture (screenshotone.com and htmlcsstoimage.com both have a

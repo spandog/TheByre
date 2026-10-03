@@ -41,6 +41,14 @@
     <p class="event-meta" id="dueSheetItemLabel"></p>
     <label class="field-label">Due (optional)</label>
     <input type="date" id="dueDateInput">
+    <label class="field-label">Remind me (optional)</label>
+    <select id="dueReminderInput">
+      <option value="">No reminder</option>
+      <option value="0">On the day</option>
+      <option value="1">1 day before</option>
+      <option value="3">3 days before</option>
+      <option value="7">1 week before</option>
+    </select>
     <label class="field-label">Who's this for (optional)</label>
     <input type="text" id="dueChildInput" placeholder="e.g. a name, or leave blank for everyone">
     <div class="sheet-row">
@@ -138,14 +146,17 @@
     dueEditId = id;
     document.getElementById('dueSheetItemLabel').textContent = text;
     document.getElementById('dueDateInput').value = '';
+    document.getElementById('dueReminderInput').value = '';
     document.getElementById('dueChildInput').value = '';
     dueBackdrop.hidden = false;
   }
   document.getElementById('dueCancel').addEventListener('click', () => dueBackdrop.hidden = true);
   document.getElementById('dueSave').addEventListener('click', async () => {
     const due = document.getElementById('dueDateInput').value || null;
+    const reminderVal = document.getElementById('dueReminderInput').value;
+    const remind_days_before = due && reminderVal !== '' ? parseInt(reminderVal, 10) : null;
     const child = document.getElementById('dueChildInput').value.trim() || null;
-    if (dueEditId) await window.sb.from('todo_items').update({ due_date: due, child }).eq('id', dueEditId);
+    if (dueEditId) await window.sb.from('todo_items').update({ due_date: due, remind_days_before, child }).eq('id', dueEditId);
     dueBackdrop.hidden = true;
     load();
   });

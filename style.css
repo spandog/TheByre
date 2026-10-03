@@ -44,10 +44,19 @@
   --gold: #D6C36C; --gold-bg: #38331B; --danger: #D08579;
 }
 * { box-sizing: border-box; }
-html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-font-smoothing: antialiased; overflow: hidden; }
-body { display: flex; flex-direction: column; max-width: 640px; margin: 0 auto; height: 100%; overflow: hidden; }
-
-header.top { padding: 18px 20px 14px; flex-shrink: 0; background: var(--bg); z-index: 5; border-bottom: 1px solid var(--line); padding-top: calc(18px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+html { height: 100%; overflow: hidden; overscroll-behavior: none; -webkit-text-size-adjust: 100%; background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); -webkit-font-smoothing: antialiased;
+  /* Pinned to the screen so the page itself can never be dragged, bounced or
+     nudged sideways. Only <main> scrolls. --app-top / --app-h are kept in step
+     with the visible area (keyboard, browser toolbars) by layout.js. */
+  position: fixed; left: 0; right: 0; top: var(--app-top, 0px);
+  width: 100%; max-width: 640px; margin: 0 auto;
+  height: var(--app-h, 100dvh);
+  display: flex; flex-direction: column; overflow: hidden; overscroll-behavior: none;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+header.top { min-height: calc(68px + env(safe-area-inset-top, 0px)); padding: 18px 20px 14px; flex-shrink: 0; background: var(--bg); z-index: 5; border-bottom: 1px solid var(--line); padding-top: calc(18px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 header.top .brand { display: flex; flex-direction: column; }
 header.top .brand-row { display: flex; align-items: center; gap: 10px; }
 header.top .brand-badge {
@@ -62,7 +71,7 @@ header.top h1 { font-family: var(--font-display); font-weight: 600; font-size: 2
 .auth-widget button { font-family: var(--font-body); font-size: 13px; font-weight: 500; padding: 7px 13px; border-radius: 100px; border: 1px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer; }
 .auth-widget .who { color: var(--ink-faint); margin-right: 8px; }
 
-main { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 20px 100px; }
+main { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 16px 20px 100px; }
 
 .day-group { margin-bottom: 22px; }
 .day-group h2 { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink-soft); margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
@@ -91,6 +100,8 @@ main { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: tou
 .day-detail h2 { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink-soft); margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
 .event-row, .list-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
 .event-row:last-child, .list-row:last-child { border-bottom: none; }
+.event-row.event-past { opacity: .4; }
+.event-row.event-past .event-title { text-decoration: line-through; text-decoration-color: var(--ink-faint); }
 .dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
 .dot.general { background: var(--ink-soft); }
 .dot.holiday { background: var(--clay); }
@@ -153,14 +164,14 @@ main { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: tou
 .clear-btn { margin-top: 14px; background: none; border: none; color: var(--ink-faint); font-size: 13.5px; text-decoration: underline; cursor: pointer; padding: 0; }
 
 input[type=text], input[type=date], input[type=time], input[type=email], textarea, select {
-  width: 100%; font-family: var(--font-body); font-size: 15px; padding: 10px 12px; border-radius: 9px;
+  width: 100%; font-family: var(--font-body); font-size: 16px; padding: 10px 12px; border-radius: 9px;
   border: 1px solid var(--line); background: var(--card); color: var(--ink);
 }
 textarea { resize: vertical; min-height: 60px; }
 label.field-label { font-size: 12.5px; color: var(--ink-soft); display: block; margin: 12px 0 5px; }
 label.field-label:first-child { margin-top: 0; }
 
-nav.tabs { flex-shrink: 0; display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
+nav.tabs { flex-shrink: 0; min-height: calc(56px + env(safe-area-inset-bottom, 0px)); display: flex; justify-content: center; background: var(--bg); border-top: 1px solid var(--line); padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); z-index: 6; }
 .tabs-inner { max-width: 640px; width: 100%; display: flex; padding: 0 12px; gap: 4px; }
 .tab-btn { flex: 1; background: none; border: none; font-family: var(--font-body); font-size: 11.5px; font-weight: 500; color: var(--ink-faint); padding: 6px 0 4px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; }
 .tab-btn .icon { font-size: 18px; }
@@ -168,9 +179,9 @@ nav.tabs { flex-shrink: 0; display: flex; justify-content: center; background: v
 
 .fab { position: fixed; right: 20px; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; border-radius: 50%; background: var(--ink); color: var(--bg); border: none; font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.22); cursor: pointer; z-index: 6; }
 
-.sheet-backdrop { position: fixed; inset: 0; background: rgba(20,24,18,.4); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-backdrop { position: fixed; left: 0; right: 0; top: var(--app-top, 0px); height: var(--app-h, 100dvh); overscroll-behavior: contain; background: rgba(20,24,18,.4); z-index: 10; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-backdrop[hidden] { display: none; }
-.sheet { background: var(--bg-elevated); width: 100%; max-width: 640px; border-radius: 18px 18px 0 0; padding: 18px 20px calc(22px + env(safe-area-inset-bottom, 0px)); max-height: 86vh; overflow-y: auto; }
+.sheet { background: var(--bg-elevated); width: 100%; max-width: 640px; border-radius: 18px 18px 0 0; padding: 18px 20px calc(22px + env(safe-area-inset-bottom, 0px)); max-height: calc(var(--app-h, 100dvh) * 0.9); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .sheet h3 { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin: 0 0 4px; }
 .sheet-row { display: flex; gap: 10px; margin-top: 18px; }
 .btn { font-family: var(--font-body); font-size: 14.5px; font-weight: 500; padding: 11px 0; border-radius: 9px; border: none; cursor: pointer; flex: 1; text-align: center; }
@@ -265,4 +276,24 @@ body.gate-locked #authGate { display: flex; }
 }
 @media (max-width: 639px) {
   header.top nav.top-links { display: none; }
+}
+
+
+/* --- Native-feeling touch behaviour --- */
+button, a, .chip, .cat-opt, .tab-btn, .glance-row, .list-row, .event-row, .day-cell, .check, .fab {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+}
+input, textarea { -webkit-user-select: text; user-select: text; }
+.chip-row, .month-grid { overscroll-behavior-x: contain; }
+
+/* Keyboard open: hide the tab bar and add button so nothing floats over the form */
+body.kb-open nav.tabs, body.kb-open .fab { display: none; }
+
+/* Smooth page-to-page navigation, with the header and tab bar held still */
+@view-transition { navigation: auto; }
+header.top { view-transition-name: app-header; }
+nav.tabs { view-transition-name: app-tabs; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .14s; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

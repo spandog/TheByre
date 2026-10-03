@@ -64,13 +64,15 @@
       const el = document.getElementById('todayList');
       if (error) { el.innerHTML = '<p class="event-meta">Could not load today\'s events.</p>'; return; }
       if (!data.length) { el.innerHTML = '<p class="event-meta">Nothing on today. Enjoy the quiet.</p>'; return; }
-      el.innerHTML = data.map(e =>
-        '<div class="event-row" style="cursor:default">' +
+      const nowHM = new Date().toTimeString().slice(0, 5);
+      el.innerHTML = data.map(e => {
+        const past = e.time && e.time <= nowHM;
+        return '<div class="event-row' + (past ? ' event-past' : '') + '" style="cursor:default">' +
         '<span class="dot ' + e.category + '"></span>' +
         '<div class="event-main"><div class="event-title">' + escapeHtml(e.title) + '</div>' +
         (e.time ? '<div class="event-meta">' + escapeHtml(formatTime(e.time)) + '</div>' : '') +
-        '</div></div>'
-      ).join('');
+        '</div></div>';
+      }).join('');
     });
 
   // Everything else collapses into one compact list, and only the rows that

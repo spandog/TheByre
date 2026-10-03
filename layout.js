@@ -192,12 +192,35 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    buildHeader();
-    buildNav();
-    buildAuthGate();
-    buildAuthWidget();
-  });
+  // The header and nav elements already exist above this script, so build them
+  // straight away rather than waiting for the page to finish. That stops the
+  // bars popping in late and shifting everything on each navigation.
+  buildHeader();
+  buildNav();
+  buildAuthGate();
+  buildAuthWidget();
+
+  // Keep the app sized to what is genuinely visible. On iOS the keyboard does
+  // not resize the page, it slides the view, which is what pushes headers and
+  // buttons off screen. Following the visual viewport fixes that.
+  (function trackViewport() {
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    let baseH = window.innerHeight;
+    function update() {
+      const h = vv ? vv.height : window.innerHeight;
+      const top = vv ? vv.offsetTop : 0;
+      root.style.setProperty('--app-h', h + 'px');
+      root.style.setProperty('--app-top', top + 'px');
+      if (!document.body.classList.contains('kb-open')) baseH = Math.max(baseH, window.innerHeight);
+      document.body.classList.toggle('kb-open', h < baseH * 0.75);
+      if (window.scrollY || window.pageYOffset) window.scrollTo(0, 0);
+    }
+    if (vv) { vv.addEventListener('resize', update); vv.addEventListener('scroll', update); }
+    window.addEventListener('orientationchange', () => { baseH = 0; setTimeout(() => { baseH = window.innerHeight; update(); }, 300); });
+    document.addEventListener('focusout', () => setTimeout(() => window.scrollTo(0, 0), 60));
+    update();
+  })();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
